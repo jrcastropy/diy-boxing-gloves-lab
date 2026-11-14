@@ -56,8 +56,15 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; letter
 section { display: flex; flex-direction: column; gap: 8px; }
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; margin: 0; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
 h2 small { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-weight: 400; font-size: 12px; }
-.row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; align-items: center; gap: 8px; font-size: 13px; }
+.row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 84px; align-items: center; gap: 8px; font-size: 13px; }
 .row output { font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.numbox { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.numbox input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg);
+  font: 12px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; padding: 4px 5px; -moz-appearance: textfield; appearance: textfield; }
+.numbox input::-webkit-outer-spin-button, .numbox input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.numbox input:hover { border-color: var(--muted); }
+.numbox input:focus { border-color: var(--accent); outline: none; }
+.numbox span { font: 12px var(--font-mono); color: var(--muted); width: 1.1em; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
@@ -146,7 +153,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <p class="note err" id="drawWarn" hidden>The pieces picked for new lines are all hidden. Show one in <b>Show</b>, or pick a shown piece, to draw lines.</p>
       <div id="moveOpts" class="stack" hidden>
         <div class="pickrow"><span>Moving</span><div class="layers" id="moveWhich"></div></div>
-        <div class="row"><label for="rot">Rotation</label><input id="rot" type="range" min="-45" max="45" step="0.5" value="0"><output id="rotOut"></output></div>
+        <div class="row"><label for="rot">Rotation</label><input id="rot" type="range" min="-180" max="180" step="0.5" value="0"><output id="rotOut"></output></div>
         <p class="note" id="poseOut"></p>
         <div class="btns"><button class="btn" id="resetPose">Reset this piece</button><button class="btn" id="resetPoses">Reset all positions</button></div>
       </div>
@@ -161,12 +168,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <div class="name" id="bendName"></div>
         <div class="pickrow"><span>Bends</span><div class="layers" id="bendFor"></div></div>
         <div class="row"><label for="angle">Bend angle</label><input id="angle" type="range" min="-170" max="170" step="1"><output id="angleOut"></output></div>
+        <div class="row"><label for="twist">Rotate</label><input id="twist" type="range" min="-359" max="359" step="1" value="0"><output id="twistOut"></output></div>
         <div class="row"><label for="radius">Bend radius</label><input id="radius" type="range" min="0.25" max="5" step="0.05"><output id="radiusOut"></output></div>
         <div class="btns">
           <button class="btn" id="flip">Bend the other side</button>
           <button class="btn" id="del">Delete line</button>
         </div>
-        <p class="note">Positive angles curl toward the palm. Radius is measured at the palm face of the foam; smaller means a sharper fold.</p>
+        <p class="note">Rotate rolls the part about the arrow's direction first, then Bend angle curls it. Positive angles curl toward the palm. Radius is measured at the palm face of the foam; smaller means a sharper fold.</p>
       </div>
       <div class="btns">
         <button class="btn" id="draw3d">Draw on 3D</button>
@@ -342,6 +350,8 @@ function updateHingeGeom(h) {
     h.cache[p.key] = computeFree(h, p);
   }
   h.distMain = h.dist[main.key];
+  const mc = h.cache[main.key], tm = mc ? (mc.lo + mc.hi) / 2 : h.len / 2; // centre of the cut: the Rotate axis passes through it
+  h.tc = [h.a[0] + h.ux * tm, h.a[1] + h.uy * tm];
 }
 function computeFree(h, p) {
   const f = p.flat, N = p.N, n = p.nB;
@@ -387,7 +397,25 @@ function sortedHinges() { return [...state.hinges].sort((x, y) => x.distMain - y
 function orderFor(p) { return state.hinges.filter(h => h.cache[p.key]).sort((x, y) => x.dist[p.key] - y.dist[p.key]); }
 
 // Rigid motion of one point for one bend. Mutates v (array of 3).
+// Rotate (twist): before bending, the part past the line rolls about an axis running across the line
+// (along n, the arrow), through the middle of the cut at mid-stack height, so all layers turn together.
+// The roll builds up over the first TWIST_RAMP inches past the line, so the piece doesn't tear at the line.
+// Turning about n leaves each point's distance d across the line unchanged, so the bend below still applies.
+const TWIST_RAMP = 1.0;
+function twistPoint(v, h, d) {
+  const tw = (h.twist || 0) * DEG;
+  if (tw === 0 || d <= 0) return;
+  const ang = tw * Math.min(1, d / TWIST_RAMP), c = Math.cos(ang), sn = Math.sin(ang);
+  const kx = h.nx, ky = h.ny; // unit axis (kz = 0)
+  const x = v[0] - h.tc[0], y = v[1] - h.tc[1], z = v[2] - HTOP / 2;
+  const dot = kx * x + ky * y;
+  const cx = ky * z, cy = -kx * z, cz = kx * y - ky * x; // k × v
+  v[0] = x * c + cx * sn + kx * dot * (1 - c) + h.tc[0];
+  v[1] = y * c + cy * sn + ky * dot * (1 - c) + h.tc[1];
+  v[2] = z * c + cz * sn + HTOP / 2;
+}
 function bendPoint(v, h, p, d) {
+  twistPoint(v, h, d); // rotate first, then bend
   const th = h.angle * DEG;
   if (th === 0 || d <= 0) return;
   const R = h.radius, zc = th > 0 ? -R : HTOP + R;
@@ -960,7 +988,7 @@ function renderBendList() {
     for (const h of hs) {
       const b = document.createElement('button');
       b.className = 'chip' + (h.id === state.selected ? ' sel' : ''); b.setAttribute('aria-pressed', 'true'); b.dataset.id = h.id;
-      const t = document.createElement('span'); t.className = 't'; t.textContent = `${h.name} · ${h.angle}°`;
+      const t = document.createElement('span'); t.className = 't'; t.textContent = chipText(h);
       if (g.title === 'Shared') b.append(...onPieces(h).map(swatch));
       b.append(t);
       b.addEventListener('click', () => select(h.id));
@@ -977,9 +1005,10 @@ function syncBendBox() {
   if (!h) return;
   $('bendName').textContent = h.name;
   $('angle').value = h.angle; $('angleOut').textContent = `${h.angle}°`;
+  $('twist').value = h.twist || 0; $('twistOut').textContent = `${h.twist || 0}°`;
   $('radius').value = h.radius; $('radiusOut').textContent = `${(+h.radius).toFixed(2)}"`;
   const chip = $('bendList').querySelector(`[data-id="${h.id}"] .t`);
-  if (chip) chip.textContent = `${h.name} · ${h.angle}°`;
+  if (chip) chip.textContent = chipText(h);
   const forKey = String(h.id) + JSON.stringify(h.pieces) + JSON.stringify(state.show);
   if ($('bendFor').dataset.for !== forKey) {
     $('bendFor').dataset.for = forKey;
@@ -991,6 +1020,7 @@ function syncBendBox() {
     }, p => !state.show[p.key]);
   }
 }
+function chipText(h) { return `${h.name} · ${h.angle}°` + (h.twist ? ` ↻${h.twist}°` : ''); }
 function selH() { return state.hinges.find(x => x.id === state.selected); }
 
 // Flat-pattern tools
@@ -1070,10 +1100,11 @@ for (const [id, key] of MOULD_THICK) $(id).addEventListener('input', e => { chec
 $('resetThick').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_THICK) setThickness(key, 1); });
 $('resetSizes').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_SIZE) setPose(P[key], { scale: 100 }); syncMouldSizes(); poseChanged(); });
 $('angle').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('angle' + h.id); h.angle = +e.target.value; syncBendBox(); dirty = true; save(); });
+$('twist').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('twist' + h.id); h.twist = +e.target.value; syncBendBox(); dirty = true; save(); });
 $('radius').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('radius' + h.id); h.radius = +e.target.value; syncBendBox(); dirty = true; save(); });
 $('flip').addEventListener('click', () => { const h = selH(); if (!h) return; checkpoint(); h.flip = !h.flip; updateHingeGeom(h); colorsDirty = dirty = true; drawFlat(); save(); });
 $('del').addEventListener('click', () => { checkpoint(); state.hinges = state.hinges.filter(h => h.id !== state.selected); select(null); dirty = true; save(); });
-$('flatten').addEventListener('click', () => { checkpoint(); state.hinges.forEach(h => h.angle = 0); syncBendBox(); renderBendList(); dirty = true; save(); });
+$('flatten').addEventListener('click', () => { checkpoint(); state.hinges.forEach(h => { h.angle = 0; h.twist = 0; }); syncBendBox(); renderBendList(); dirty = true; save(); });
 $('reset').addEventListener('click', () => { checkpoint(); state.hinges = []; presetHinges().forEach(addHinge); select(state.hinges[1].id); dirty = true; save(); });
 
 function bindRange(id, key, fmt, after) {
@@ -1103,7 +1134,7 @@ let booted = false;
 function snapshot() {
   return { scale: state.scale, drape: state.drape, edgeR: state.edgeR, target: state.target, opacity: state.opacity, show: { ...state.show },
     newFor: { ...state.newFor }, thick: { mould1: P.mould1.thick, mould2: P.mould2.thick }, poses: Object.fromEntries(PIECES.map(p => [p.key, { ...p.pose }])),
-    hinges: state.hinges.map(h => ({ name: h.name, a: h.a, b: h.b, angle: h.angle, radius: h.radius, flip: h.flip, pieces: { ...h.pieces } })) };
+    hinges: state.hinges.map(h => ({ name: h.name, a: h.a, b: h.b, angle: h.angle, twist: h.twist || 0, radius: h.radius, flip: h.flip, pieces: { ...h.pieces } })) };
 }
 function save() {
   if (!booted) return;
@@ -1130,7 +1161,7 @@ function applyConfig(s) {
   for (const h of hs) {
     if (!h || !pt2(h.a) || !pt2(h.b)) continue;
     const pieces = h.pieces && PIECES.some(p => h.pieces[p.key]) ? { chone: !!h.pieces.chone, mould1: !!h.pieces.mould1, mould2: !!h.pieces.mould2 } : ALL();
-    addHinge({ name: String(h.name || nextBendName()), a: h.a, b: h.b, angle: fin(h.angle) ? h.angle : 0, radius: fin(h.radius) ? h.radius : 1.5, flip: !!h.flip, pieces });
+    addHinge({ name: String(h.name || nextBendName()), a: h.a, b: h.b, angle: fin(h.angle) ? h.angle : 0, twist: fin(h.twist) ? Math.max(-359, Math.min(359, h.twist)) : 0, radius: fin(h.radius) ? h.radius : 1.5, flip: !!h.flip, pieces });
   }
   renderNewFor(); renderMoveWhich(); syncMoveBox(); syncMouldSizes(); syncThickness();
   select(state.hinges.length > 1 ? state.hinges[1].id : state.hinges[0]?.id ?? null);
@@ -1226,6 +1257,44 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
 new ResizeObserver(sizeFlat).observe(flat);
+
+// Number boxes: every slider in the panel gets a box beside it for typing an exact value. The box follows the slider
+// (including values set from code, by watching the slider's value setter). A typed value is applied on Enter or when
+// the box loses focus; it is kept inside the slider's range but NOT rounded to the slider's step. The slider's
+// step is relaxed for that, and restored as soon as the slider itself is touched again.
+const NUM_UNITS = { opacity: ['%', 100], rot: ['°'], angle: ['°'], twist: ['°'], radius: ['"'], scale: ['%'], drape: ['°'], edgeR: ['"'],
+  m1scale: ['%'], m2scale: ['%'], m1thick: ['"'], m2thick: ['"'], target: ['"'] };
+const rangeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+function addNumberBox(range) {
+  const [unit, k = 1] = NUM_UNITS[range.id] || [''], out = $(range.id + 'Out');
+  const lo = +range.min, hi = +range.max, step0 = range.getAttribute('step');
+  const box = document.createElement('label'); box.className = 'numbox';
+  const num = document.createElement('input');
+  num.type = 'number'; num.inputMode = 'decimal'; num.min = lo * k; num.max = hi * k; num.step = 'any';
+  num.setAttribute('aria-label', (range.labels[0]?.textContent || range.id) + (unit ? ` (${unit === '"' ? 'inches' : unit})` : ''));
+  const u = document.createElement('span'); u.textContent = unit;
+  box.append(num, u);
+  out.hidden = true; out.after(box);
+  const show = () => { if (document.activeElement !== num) num.value = String(+(rangeValue.get.call(range) * k).toFixed(4)); };
+  const offStep = v => { const n = (+v - lo) / +step0; return Math.abs(n - Math.round(n)) > 1e-6; };
+  Object.defineProperty(range, 'value', { configurable: true, get() { return rangeValue.get.call(this); },
+    set(v) { if (offStep(v)) this.setAttribute('step', 'any'); rangeValue.set.call(this, v); show(); } }); // keep exact values set from code
+  range.addEventListener('input', show);
+  const restoreStep = () => { if (range.getAttribute('step') !== step0) range.setAttribute('step', step0); };
+  range.addEventListener('pointerdown', restoreStep); range.addEventListener('keydown', restoreStep);
+  num.addEventListener('change', () => {
+    const v = parseFloat(num.value);
+    if (!Number.isFinite(v)) { num.blur(); show(); return; }
+    const x = Math.max(lo, Math.min(hi, v / k));
+    range.setAttribute('step', 'any'); rangeValue.set.call(range, x);
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    num.value = String(+(x * k).toFixed(4));
+  });
+  num.addEventListener('keydown', e => { if (e.key === 'Enter') num.blur(); if (e.key === 'Escape') { num.value = ''; num.blur(); show(); } });
+  num.addEventListener('blur', show);
+  show();
+}
+document.querySelectorAll('.row > input[type=range]').forEach(addNumberBox);
 
 applyConfig(load() || {});
 setTool('draw');

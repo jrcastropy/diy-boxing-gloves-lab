@@ -132,6 +132,7 @@ A bend line is a segment `a → b` on the flat pattern, plus:
 - an **angle** θ (positive curls toward the palm)
 - a **radius** R, measured at the palm face of the foam
 - a **flip** flag that chooses which side moves
+- a **rotate** angle τ (−359° to +359°), which rolls the moving part about its own length before it's bent
 - **pieces**: which of Chone, Mould 1 and Mould 2 it bends. At least one.
 
 A line bends only the pieces it's given. Pieces it isn't given ignore it completely, so you can bend just the Chone, just one mould, or several pieces together. New lines are given the pieces picked under "New lines bend" (the Chone by default). The three starting lines bend all three pieces, which is the old "fold as one" behaviour. In the panel, a line given one piece is drawn in that piece's colour (Chone red, Mould 1 yellow, Mould 2 blue). A line given several pieces is drawn in the text colour. In 3D, a line is drawn on the top-most piece it bends.
@@ -167,6 +168,16 @@ Points still inside the bend (`d < |θ|·r`) end up on the curve. Points beyond 
 **Why each layer uses its own radius:** the radius `r` includes the layer's own neutral height. So for the same bend line and angle, the Chone (at 2.04) needs a longer stretch of flat material to go round the bend than Mould 1 (at 1.5) or Mould 2 (at 0.5). That difference is the 3D effect the flat comparison misses.
 
 The turn uses Rodrigues' rotation formula, written out by hand in `bendPoint()`.
+
+#### Rotate (before the bend)
+
+If a line's rotate angle τ isn't 0, the moving part is first rolled about an axis that runs across the line. The axis points along `n` (the arrow in the flat panel) and passes through the middle of the cut, at height `HTOP / 2` (the middle of the stack). Every piece on the line turns about this same axis, so the layers stay stacked. The roll builds up over the first inch past the line, so the piece doesn't tear at the line:
+
+```
+roll angle  = τ · min(1, d / 1")
+```
+
+Turning about `n` doesn't change a point's distance `d` across the line, so the bend is then applied exactly as before: **rotate first, then bend**. Within that first inch the roll twists the material a little. Like the rest of the model, this is a rough guide, not cloth. `twistPoint()` holds the maths. The bend list shows a rotated line as `Bend 3 · 30° ↻45°`. **Flatten all** zeroes both the bend angle and the rotate.
 
 #### Several bends at once
 
@@ -230,6 +241,7 @@ Lines given only the moved piece move, turn and scale with it, so they stay in t
 - **Show:** hiding a piece hides it in 3D and in the flat pattern panel (its outline, and the stitch line for the Chone). It also hides its bend lines in 3D, in the flat panel and in the bend list, and they can't be picked by tapping. A line shared with a piece that's still shown stays visible and is drawn on that piece. If the selected line gets hidden, nothing is selected. The bend count says how many lines are hidden. A hidden piece is also greyed out and can't be clicked in every piece picker. In **New lines bend**, new lines go only on pieces that are picked and shown. If all the picked pieces are hidden, drawing in the flat panel does nothing, **Draw on 3D** is switched off, and a note says why. In a line's **Bends**, you can't add a hidden piece to the line or take it off. In **Moving**, a hidden piece can't be moved. If the piece being moved gets hidden, the first shown piece is picked instead.
 - **Bend list:** lines are grouped under Chone, Mould 1, Mould 2 and Shared (lines that bend more than one piece, shown with a colour dot for each of their pieces). Each group is sorted by name in number order (Bend 2 before Bend 10). New lines are named one more than the highest "Bend N" already there, so names never repeat. (They used to come from a counter that reset on load, which made duplicates.)
 - **Undo:** the **↶ Undo** button at the top of the 3D view, or ⌘Z / Ctrl+Z, steps back through changes. These are: adding, deleting, flipping or flattening lines; dragging a line's ends; bending in 3D; changing a line's pieces, angle or radius; moving, turning, resizing or thickening pieces; the Chone size, edge-wrap and target sliders; "Reset…" buttons; and loading a config. Before each change, the page pushes a full snapshot (up to 100). Continuous input from one control within a second, like dragging a slider, is one step. A click that doesn't actually change anything doesn't add a step. Undo leaves the view settings as they are now: Show, see-through and "New lines bend". The undo history lives only in the open page and is cleared when it reloads.
+- **Number boxes:** every slider in the panel has a box beside it for typing an exact value, with its unit (°, ", %; see-through is in %). The box and the slider follow each other both ways. A typed value applies when you press Enter or click away, and Esc cancels. It's kept inside the slider's range, but it isn't rounded to the slider's step. A 1.37" thickness stays 1.37" instead of becoming 1.35". To allow that, the slider accepts any value until you drag or key it again. The piece Rotation slider now goes from −180° to +180° (it was ±45°), to match what Shift-drag can do.
 - **Config files:** **Save config…** writes everything as JSON: the bend lines and their pieces, piece positions, mould sizes and thicknesses, the "New lines bend" choice, and all sliders. Configs belong in `viewer/config/`, which is git-ignored so they stay on your machine. A web page can't open a dialog at a fixed path, so in Chrome and Edge both the save and the open dialog use one remembered-folder id (`chone-fit-config`). You browse to `viewer/config/` the first time, and after that both dialogs open there by themselves, even after a reload. The folder is remembered for each origin, such as `localhost:8000`. Where those dialogs aren't available (Safari, Firefox, some embedded pages), Save downloads `chone-fit-config.json` for you to move into `viewer/config/`, and Load uses a plain file picker. **Load config…** reads a file back. The page checks it first: bad lines are skipped, and missing fields get their defaults. The browser's own saved copy and config files go through the same `applyConfig()`, so they behave the same. A page can't write into a folder without asking you first, which is why there's a dialog.
 - **Redrawing:** changes mark the model as out of date, and the next animation frame recomputes everything. The amount of work is small: about 13,000 vertices times a few bend lines.
 

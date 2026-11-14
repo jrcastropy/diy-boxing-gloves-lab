@@ -75,6 +75,12 @@ Requested 2026-11-14. Work through these one at a time. Tick each box when it's 
 - [ ] **A11. Undo** — built, waiting for your browser test
   - An Undo button plus ⌘Z / Ctrl+Z undo the most recent change: moving, adding a line, sliders and so on.
 
+- [ ] **A12. Rotate a bend line** — built, waiting for your browser test
+  - Each line has a Rotate slider (±359°). The part past the line rolls about its own length, then the Bend angle curls it.
+
+- [ ] **A13. Type exact values** — built, waiting for your browser test
+  - A number box beside every slider. Typed values aren't rounded to the slider's step.
+
 ## After each item
 
 - [ ] Update `docs/chone-fit-lab.md` to match.
