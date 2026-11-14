@@ -66,7 +66,7 @@ h2 small { font-family: var(--font-body); letter-spacing: 0; text-transform: non
 .numbox input::-webkit-outer-spin-button, .numbox input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .numbox input:hover { border-color: var(--muted); }
 .numbox input:focus { border-color: var(--accent); outline: none; }
-.numbox span { font: 12px var(--font-mono); color: var(--muted); width: 1.1em; }
+.numbox span { font: 12px var(--font-mono); color: var(--muted); min-width: 1.1em; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
@@ -110,6 +110,31 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .err { color: var(--bad); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+/* Tabs */
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.tab { border: 1px solid transparent; background: none; color: var(--muted); border-radius: 6px; padding: 6px 4px; font: 600 15px var(--font-display); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); background: var(--bg); border-color: var(--line); }
+.tabpanel { display: flex; flex-direction: column; gap: 10px; }
+/* Items */
+.itemlist { display: flex; flex-direction: column; gap: 4px; }
+.item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--bg); cursor: pointer; font: 500 13px var(--font-body); color: var(--fg); text-align: left; }
+.item:hover { border-color: var(--muted); }
+.item.sel { border-color: var(--accent); background: var(--accent-soft); }
+.item .kind { font-size: 11px; color: var(--muted); }
+.item.off .nm { opacity: .5; }
+.eye { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 6px; padding: 2px 8px; font: 500 11.5px var(--font-body); cursor: pointer; }
+.eye[aria-pressed="false"] { color: var(--muted); }
+.nameinput { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 600 14px var(--font-body); padding: 5px 7px; }
+.nameinput:focus { border-color: var(--accent); outline: none; }
+.sub3 { margin: 4px 0 0; font: 600 12px var(--font-body); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+/* Add-item dialog */
+.dlg { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg); padding: 16px; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-sizing: border-box; }
+.dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.dlg h3 { margin: 0 0 8px; font: 700 22px var(--font-display); text-transform: uppercase; letter-spacing: .03em; }
+.dlg .body { display: flex; flex-direction: column; gap: 10px; }
+.impcanvas { width: 100%; height: min(52vh, 460px); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); display: block; cursor: pointer; touch-action: none; }
+.formrow { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
 @media (max-width: 820px) {
   html, body { height: auto; }
   .app { grid-template-columns: minmax(0, 1fr); height: auto; }
@@ -122,7 +147,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 <div class="app">
   <div class="stage" id="stage">
-    <canvas id="view" aria-label="3D view of the Chone over the two foam moulds"></canvas>
+    <canvas id="view" aria-label="3D view of the items: leather over foam moulds"></canvas>
     <div class="hud" role="toolbar" aria-label="Camera views">
       <button class="btn" id="undo" disabled title="Undo (⌘Z / Ctrl+Z)">↶ Undo</button>
       <button class="btn" data-view="persp">3/4 palm</button>
@@ -134,7 +159,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     </div>
     <div class="toast" id="toast" role="alert" hidden></div>
     <div class="reach" id="reach">
-      <div class="lbl">Shortest seam reach</div>
+      <div class="lbl" id="reachLbl">Shortest seam reach</div>
       <div class="big" id="reachVal">–</div>
       <div class="where" id="reachWhere"></div>
     </div>
@@ -144,29 +169,58 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <aside class="panel">
     <header>
       <h1>Chone Fit Lab</h1>
-      <p class="sub">Laces Boxing 14 oz. The Chone (leather back) over Mould 1 and Mould 2 (foam). Each bend line bends only the piece(s) you give it. Sizes in inches.</p>
+      <p class="sub">Laces Boxing 14 oz. Leather items over foam moulds, stacked from the palm face up. Each bend line bends only the item(s) you give it. Sizes in inches.</p>
     </header>
 
-    <section>
-      <h2>Show</h2>
-      <div class="layers">
-        <button class="chip" id="lyChone" aria-pressed="true"><span class="sw" style="background:var(--accent)"></span>Chone</button>
-        <button class="chip" id="lyM1" aria-pressed="true"><span class="sw" style="background:var(--foam1)"></span>Mould 1</button>
-        <button class="chip" id="lyM2" aria-pressed="true"><span class="sw" style="background:var(--foam2)"></span>Mould 2</button>
+    <nav class="tabs" role="tablist" aria-label="Panel">
+      <button class="tab" role="tab" data-tab="items" aria-controls="tab-items">Items</button>
+      <button class="tab" role="tab" data-tab="flat" aria-controls="tab-flat">Pattern &amp; bends</button>
+      <button class="tab" role="tab" data-tab="config" aria-controls="tab-config">Config</button>
+    </nav>
+
+    <section class="tabpanel" id="tab-items" role="tabpanel" aria-label="Items">
+      <p class="note">Listed top of the stack first. Click an item to choose it and see its settings.</p>
+      <div class="itemlist" id="itemList"></div>
+      <div class="btns"><button class="btn" id="itemAdd">Add item from DXF…</button></div>
+      <div class="bendbox" id="itemBox">
+        <input class="nameinput" id="itemName" aria-label="Item name" maxlength="40">
+        <p class="note" id="itemKind"></p>
+        <label class="check"><input type="checkbox" id="itemShow"> Shown</label>
+        <div class="row"><label for="itOpacity">See-through</label><input id="itOpacity" type="range" min="0.15" max="1" step="0.05" value="1"><output id="itOpacityOut"></output></div>
+        <div class="row"><label for="itScale">Size</label><input id="itScale" type="range" min="50" max="150" step="0.5" value="100"><output id="itScaleOut"></output></div>
+        <p class="note" id="itSize"></p>
+        <div class="row" id="rowThickIn"><label for="itThickIn">Thickness</label><input id="itThickIn" type="range" min="0.25" max="3" step="0.05" value="1"><output id="itThickInOut"></output></div>
+        <div class="row" id="rowThickMm"><label for="itThickMm">Thickness</label><input id="itThickMm" type="range" min="0.5" max="6" step="0.1" value="1"><output id="itThickMmOut"></output></div>
+        <p class="note" id="itStack"></p>
+        <div class="stack" id="itLeather">
+          <p class="sub3">Edge wrap</p>
+          <div class="row"><label for="itDrape">Edge wrap</label><input id="itDrape" type="range" min="0" max="160" step="1" value="0"><output id="itDrapeOut"></output></div>
+          <div class="row"><label for="itEdgeR">Edge rounding</label><input id="itEdgeR" type="range" min="0" max="1" step="0.05" value="0"><output id="itEdgeROut"></output></div>
+          <p class="note" id="itWrapNote"></p>
+          <p class="sub3">Seam reach</p>
+          <div class="stack" id="itReach">
+            <div class="row"><label for="itTarget">Should reach</label><input id="itTarget" type="range" min="0.25" max="4" step="0.05" value="2"><output id="itTargetOut"></output></div>
+            <p class="note" id="itReachNote"></p>
+            <div class="legend"><span><i style="background:var(--ok)"></i>reaches</span><span><i style="background:var(--warn)"></i>within 0.5"</span><span><i style="background:var(--bad)"></i>short</span><span><i style="background:var(--muted)"></i>wrist edge</span></div>
+          </div>
+          <p class="note" id="itNoStitch" hidden>This item has no stitch line, so there's no seam reach. Add it again from the DXF and pick its stitch line too.</p>
+        </div>
+        <div class="btns">
+          <button class="btn" id="itemUp" title="Move up the stack (away from the palm face)">↑ Up the stack</button>
+          <button class="btn" id="itemDown" title="Move down the stack (toward the palm face)">↓ Down</button>
+          <button class="btn danger" id="itemDel">Delete item</button>
+        </div>
       </div>
-      <div class="row"><label for="opacity">Chone see-through</label><input id="opacity" type="range" min="0.15" max="1" step="0.05" value="0.55"><output id="opacityOut"></output></div>
-      <div class="row"><label for="opacityM1">Mould 1 see-through</label><input id="opacityM1" type="range" min="0.15" max="1" step="0.05" value="1"><output id="opacityM1Out"></output></div>
-      <div class="row"><label for="opacityM2">Mould 2 see-through</label><input id="opacityM2" type="range" min="0.15" max="1" step="0.05" value="1"><output id="opacityM2Out"></output></div>
     </section>
 
-    <section>
-      <h2>Flat pattern</h2>
+    <section class="tabpanel" id="tab-flat" role="tabpanel" aria-label="Pattern and bend lines" hidden>
+      <p class="sub3">Flat pattern</p>
       <div class="tools" role="group" aria-label="Flat pattern tool">
         <button class="btn on" id="toolDraw">Draw lines</button>
         <button class="btn" id="toolMove">Move pieces</button>
       </div>
       <div id="drawOpts" class="pickrow"><span>New lines bend</span><div class="layers" id="newFor"></div></div>
-      <p class="note err" id="drawWarn" hidden>The pieces picked for new lines are all hidden. Show one in <b>Show</b>, or pick a shown piece, to draw lines.</p>
+      <p class="note err" id="drawWarn" hidden>The pieces picked for new lines are all hidden. Show one in <b>Items</b>, or pick a shown piece, to draw lines.</p>
       <div id="moveOpts" class="stack" hidden>
         <div class="pickrow"><span>Moving</span><div class="layers" id="moveWhich"></div></div>
         <div class="row"><label for="rot">Rotation</label><input id="rot" type="range" min="-180" max="180" step="0.5" value="0"><output id="rotOut"></output></div>
@@ -175,10 +229,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       </div>
       <canvas class="flat" id="flat" aria-label="Flat pattern"></canvas>
       <p class="note" id="flatNote"></p>
-    </section>
-
-    <section>
-      <h2>Bend lines <small id="bendCount"></small></h2>
+      <p class="sub3">Bend lines</p>
+      <p class="note" id="bendCount"></p>
       <label class="check"><input type="checkbox" id="noOverlap"> Stop pieces overlapping</label>
       <p class="note" id="overlapNote" hidden></p>
       <div class="bendgroups" id="bendList"></div>
@@ -201,67 +253,78 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       </div>
     </section>
 
-    <section>
-      <h2>Chone</h2>
-      <div class="row"><label for="scale">Size</label><input id="scale" type="range" min="90" max="125" step="1" value="100"><output id="scaleOut"></output></div>
-      <p class="note" id="choneSize"></p>
-      <div class="row"><label for="drape">Edge wrap</label><input id="drape" type="range" min="0" max="160" step="1" value="0"><output id="drapeOut"></output></div>
-      <div class="row"><label for="edgeR">Edge rounding</label><input id="edgeR" type="range" min="0" max="1" step="0.05" value="0"><output id="edgeROut"></output></div>
-      <p class="note">Edge wrap folds the leather that sticks out past Mould 1 down over the foam edge. 90° hangs it straight down the side.</p>
-    </section>
-
-    <section>
-      <h2>Moulds</h2>
-      <div class="row"><label for="m1scale">Mould 1 size</label><input id="m1scale" type="range" min="75" max="125" step="0.5" value="100"><output id="m1scaleOut"></output></div>
-      <p class="note" id="m1size"></p>
-      <div class="row"><label for="m2scale">Mould 2 size</label><input id="m2scale" type="range" min="75" max="125" step="0.5" value="100"><output id="m2scaleOut"></output></div>
-      <p class="note" id="m2size"></p>
-      <div class="row"><label for="m1thick">Mould 1 thick</label><input id="m1thick" type="range" min="0.25" max="2" step="0.05" value="1"><output id="m1thickOut"></output></div>
-      <div class="row"><label for="m2thick">Mould 2 thick</label><input id="m2thick" type="range" min="0.25" max="2" step="0.05" value="1"><output id="m2thickOut"></output></div>
-      <p class="note" id="foamTotalNote"></p>
-      <div class="btns"><button class="btn reset" id="resetSizes">Moulds back to 100%</button><button class="btn reset" id="resetThick">Thickness back to 1"</button></div>
-      <p class="note">Scales each mould about its own centre, so it stays put under the Chone. Lines that bend only that mould scale with it. Use the arrow keys on a slider for 0.5% steps.</p>
-    </section>
-
-    <section>
-      <h2>Seam reach</h2>
-      <div class="row"><label for="target">Should reach</label><input id="target" type="range" min="0.25" max="4" step="0.05" value="2"><output id="targetOut"></output></div>
-      <p class="note">How far down the foam edge the Chone stitch line ends up, measured from the top of Mould 1. The two moulds together are <span id="foamTotalInline">2.00"</span> thick. The wrist edge is left out because it's sewn to the cuff.</p>
-      <div class="legend"><span><i style="background:var(--ok)"></i>reaches</span><span><i style="background:var(--warn)"></i>within 0.5"</span><span><i style="background:var(--bad)"></i>short</span><span><i style="background:var(--muted)"></i>wrist edge</span></div>
-    </section>
-    <section>
-      <h2>Config</h2>
+    <section class="tabpanel" id="tab-config" role="tabpanel" aria-label="Config" hidden>
       <div class="btns">
         <button class="btn save" id="cfgSave">Save config…</button>
         <button class="btn load" id="cfgLoad">Load config…</button>
         <input type="file" id="cfgFile" accept=".json,application/json" hidden>
       </div>
-      <p class="note" id="cfgStatus">Saves everything (bend lines, piece positions, sizes, thicknesses, sliders) as a JSON file. Keep configs in <b>viewer/config</b>: the first time, browse there in the dialog, and after that Save and Load open there by themselves (Chrome and Edge).</p>
+      <p class="note" id="cfgStatus">Saves everything (items and their outlines, bend lines, positions, sizes, thicknesses, sliders) as a JSON file. Keep configs in <b>viewer/config</b>: the first time, browse there in the dialog, and after that Save and Load open there by themselves (Chrome and Edge).</p>
     </section>
     <p class="note err" id="err" hidden></p>
   </aside>
 </div>
 
+<dialog class="dlg" id="impDlg" aria-labelledby="impTitle">
+  <div class="body">
+    <h3 id="impTitle">Add item from DXF</h3>
+    <div class="btns"><button class="btn load" id="impPick">Choose DXF file…</button><input type="file" id="impFile" accept=".dxf" hidden></div>
+    <p class="note" id="impStatus">Choose a DXF pattern file. Its closed outlines are drawn below: click the one you want.</p>
+    <canvas class="impcanvas" id="impCanvas" aria-label="Outlines in the DXF file. Click one to pick it."></canvas>
+    <div class="formrow"><label for="impName">Name</label><input class="nameinput" id="impName" maxlength="40"></div>
+    <div class="pickrow"><span>Kind</span><div class="layers" id="impKind"></div></div>
+    <div class="pickrow" id="impPickRow"><span>Clicking picks</span><div class="layers" id="impWhat"></div></div>
+    <label class="check"><input type="checkbox" id="impMirror"> Mirror it (flip left–right)</label>
+    <p class="note" id="impHelp"></p>
+    <div class="btns"><button class="btn" id="impCancel">Cancel</button><button class="btn save" id="impAdd" disabled>Add item</button></div>
+  </div>
+</dialog>
+
 <script src="glove-data.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "delaunator": "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm"
 } }
 </script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import Delaunator from 'delaunator';
 
 const D = window.GLOVE_DATA;
-const DEG = Math.PI / 180;
-let HTOP = 2.04;                 // Chone sits on top of Mould 1 (set from the mould thicknesses in applyThickness)
-const CHONE_GAP = 0.04;          // leather sits this far above the foam top
-const ANCHOR = [-0.5, 4.0];      // back-of-hand centre: the part that never moves
+const DEG = Math.PI / 180, MM = 1 / 25.4;
+let HTOP = 2.06;                 // top of the whole layer stack (set in applyStack)
+const LEATHER_GAP = 0.02;        // leather sits this far above the item under it
+const ANCHOR = [-0.5, 4.0];      // back-of-hand centre (in the Chone's frame): the part that never moves
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-// ---------------------------------------------------------------- pieces
+// ---------------------------------------------------------------- items
+// Every piece is an item: a flat outline meshed into triangles, of one kind. Items stack in list order from the
+// palm face up (PIECES[0] is at the bottom), each sitting on the one below it. Everything else loops over PIECES,
+// so a new item or a new kind needs no special cases elsewhere.
+//   mould   - foam slab.
+//   leather - thin slab. It can wrap over the edge of the item under it (Edge wrap) and may carry a stitch line,
+//             which gives it a seam reach.
+const KINDS = {
+  mould: { label: 'Mould (foam)', thick: 1, opacity: 1, roughness: 0.95 },
+  leather: { label: 'Leather', thick: 1 * MM, opacity: 0.55, roughness: 0.55 },
+};
+const PALETTE = ['#8e6bd1', '#3fae8c', '#d9822b', '#c2577a', '#5d8f3a', '#4f7fd6'];
+// The three items from glove-data.js. Imported items carry their own outline instead.
+const BUILTIN = {
+  chone: { label: 'Chone', kind: 'leather', col: 'accent', scaleOrigin: true, wristY: 0.02 },
+  mould1: { label: 'Mould 1', kind: 'mould', col: 'foam1' },
+  mould2: { label: 'Mould 2', kind: 'mould', col: 'foam2' },
+};
+const DEFAULT_ITEMS = () => [{ key: 'mould2', builtin: 'mould2' }, { key: 'mould1', builtin: 'mould1' }, { key: 'chone', builtin: 'chone' }];
+const P = {}, PIECES = [];
+const topFirst = () => [...PIECES].reverse();
+const colorOf = p => p.col.startsWith('#') ? p.col : css('--' + p.col);
+const colorVar = p => p.col.startsWith('#') ? p.col : `var(--${p.col})`;
+
 function makePiece(key, src, opts) {
   const N = src.verts.length;
   const base = new Float32Array(N * 2);
@@ -275,36 +338,50 @@ function makePiece(key, src, opts) {
   let cx = 0, cy = 0;
   for (let k = 0; k < src.nBoundary; k++) { cx += base[2 * k]; cy += base[2 * k + 1]; }
   return { key, N, base, flat: base.slice(), tris, nB: src.nBoundary, adj: sets.map(s => Int32Array.from(s)),
-    c0: [cx / src.nBoundary, cy / src.nBoundary], pose: { x: 0, y: 0, rot: 0 }, grid: null, ...opts };
+    c0: [cx / src.nBoundary, cy / src.nBoundary], pose: { x: 0, y: 0, rot: 0, scale: 100 }, grid: null, ...opts };
 }
-const P = {
-  chone: makePiece('chone', D.chone, { label: 'Chone', col: 'accent', neutral: HTOP, slab: false }),
-  mould1: makePiece('mould1', D.mould1, { label: 'Mould 1', col: 'foam1', neutral: 1.5, z0: 1, z1: 2, slab: true, thick: 1 }),
-  mould2: makePiece('mould2', D.mould2, { label: 'Mould 2', col: 'foam2', neutral: 0.5, z0: 0, z1: 1, slab: true, thick: 1 }),
-};
-// Layer stack: Mould 2 from z = 0, Mould 1 on top of it, the Chone on top of Mould 1. Each slab bends about its mid-thickness.
-function foamTotal() { return P.mould1.thick + P.mould2.thick; }
-function applyThickness() {
-  const m1 = P.mould1, m2 = P.mould2;
-  m2.z0 = 0; m2.z1 = m2.thick; m2.neutral = m2.thick / 2;
-  m1.z0 = m2.z1; m1.z1 = m2.z1 + m1.thick; m1.neutral = (m1.z0 + m1.z1) / 2;
-  HTOP = m1.z1 + CHONE_GAP; P.chone.neutral = HTOP;
+// def: { key, label?, kind?, builtin? | outline (+ stitch), col? } -> a piece with default settings for its kind
+function createPiece(def) {
+  const b = def.builtin && BUILTIN[def.builtin];
+  let src, stitch = null;
+  if (b) { src = D[def.builtin]; stitch = D[def.builtin].stitch || null; }
+  else { src = meshOutline(def.outline); stitch = def.stitch || null; }
+  const kind = KINDS[def.kind] ? def.kind : b ? b.kind : 'mould';
+  const p = makePiece(def.key, src, {
+    label: def.label || b?.label || 'Item', kind, builtin: def.builtin || null, col: def.col || b?.col || PALETTE[0],
+    outline: b ? null : def.outline, stitchSrc: b ? null : def.stitch || null,
+    scaleOrigin: !!b?.scaleOrigin, wristY: b?.wristY ?? -Infinity,
+    thick: KINDS[kind].thick, opacity: KINDS[kind].opacity, drape: 0, edgeR: 0, target: 2,
+    z0: 0, z1: 1, neutral: 0.5,
+  });
+  p.anchor = b ? ANCHOR : p.c0.slice();
+  if (stitch) { p.stitchBase = Float32Array.from(stitch.flat()); p.stitchN = p.stitchBase.length / 2; p.stitchFlat = p.stitchBase.slice(); }
+  return p;
+}
+const below = p => PIECES[PIECES.indexOf(p) - 1] || null;
+const isLeather = p => p.kind === 'leather';
+// Moulds under a leather item, for its seam-reach target.
+function foamBelow(p) { let t = 0; for (const q of PIECES) { if (q === p) break; if (q.kind === 'mould') t += q.thick; } return t; }
+// Layer stack: each item sits on the one below it; a slab bends about its mid-thickness.
+function applyStack() {
+  let z = 0;
+  for (const p of PIECES) {
+    if (isLeather(p) && z > 0) z += LEATHER_GAP;
+    p.z0 = z; p.z1 = z + p.thick; p.neutral = (p.z0 + p.z1) / 2; z = p.z1;
+  }
+  HTOP = z;
 }
 // Placement on the sheet: each piece can be scaled, moved (x, y) and turned (rot, degrees) about its own centre.
-// The Chone scales about the wrist-edge origin (to match scale_chone.py); a mould scales about its own centre.
-function pieceScale(p) { return (p.key === 'chone' ? state.scale : (p.pose.scale ?? 100)) / 100; }
-function pivotOf(p, s) { return p.key === 'chone' ? [p.c0[0] * s, p.c0[1] * s] : p.c0; }
+// The Chone scales about the wrist-edge origin (to match scale_chone.py); other items scale about their own centre.
+function pieceScale(p) { return (p.pose.scale ?? 100) / 100; }
+function pivotOf(p, s) { return p.scaleOrigin ? [p.c0[0] * s, p.c0[1] * s] : p.c0; }
 function place(p, x, y) { // pattern point (as exported, unscaled) -> placed position
   const s = pieceScale(p), [cx, cy] = pivotOf(p, s), a = p.pose.rot * DEG, c = Math.cos(a), sn = Math.sin(a);
   const dx = (x - p.c0[0]) * s, dy = (y - p.c0[1]) * s;
   return [dx * c - dy * sn + cx + p.pose.x, dx * sn + dy * c + cy + p.pose.y];
 }
-function anchorOf(p) { return place(p, ANCHOR[0], ANCHOR[1]); }
+function anchorOf(p) { return place(p, p.anchor[0], p.anchor[1]); }
 function centerOf(p) { const [cx, cy] = pivotOf(p, pieceScale(p)); return [cx + p.pose.x, cy + p.pose.y]; }
-const PIECES = [P.chone, P.mould1, P.mould2];
-const stitchBase = Float32Array.from(D.chone.stitch.flat());
-const stitchN = stitchBase.length / 2;
-const stitchFlat = stitchBase.slice();
 
 function nearestVertex(p, x, y) {
   let best = 0, bd = Infinity;
@@ -319,16 +396,47 @@ function pointInRing(f, n, x, y) {
   }
   return hit;
 }
+function distToRing(f, n, x, y) {
+  let bd = Infinity;
+  for (let k = 0; k < n; k++) {
+    const k2 = (k + 1) % n, ax = f[2 * k], ay = f[2 * k + 1], ex = f[2 * k2] - ax, ey = f[2 * k2 + 1] - ay;
+    let r = ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1); r = Math.max(0, Math.min(1, r));
+    bd = Math.min(bd, (x - ax - ex * r) ** 2 + (y - ay - ey * r) ** 2);
+  }
+  return Math.sqrt(bd);
+}
+
+// ---------------------------------------------------------------- meshing an imported outline
+// Same recipe as scripts/export_3d.py: the outline every 0.12", a 0.2" grid inside it, Delaunay triangles,
+// keeping only triangles that lie inside the outline.
+function meshOutline(ring) {
+  const nB = ring.length, f = Float64Array.from(ring.flat()), pts = ring.map(p => [p[0], p[1]]);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of ring) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const G = 0.2;
+  for (let x = x0 + G / 2; x < x1; x += G) for (let y = y0 + G / 2; y < y1; y += G)
+    if (pointInRing(f, nB, x, y) && distToRing(f, nB, x, y) > G * 0.45) pts.push([x, y]);
+  const dl = Delaunator.from(pts), T = dl.triangles, tris = [];
+  const inside = (x, y) => pointInRing(f, nB, x, y) || distToRing(f, nB, x, y) < 1e-4;
+  for (let t = 0; t < T.length; t += 3) {
+    let [a, b, c] = [T[t], T[t + 1], T[t + 2]];
+    const A = pts[a], B = pts[b], C = pts[c];
+    const area = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
+    if (Math.abs(area) < 1e-6) continue;
+    if (!pointInRing(f, nB, (A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3)) continue;
+    if (!inside((A[0] + B[0]) / 2, (A[1] + B[1]) / 2) || !inside((B[0] + C[0]) / 2, (B[1] + C[1]) / 2) || !inside((C[0] + A[0]) / 2, (C[1] + A[1]) / 2)) continue;
+    tris.push(area > 0 ? [a, b, c] : [a, c, b]); // counter-clockwise
+  }
+  return { verts: pts, tris, nBoundary: nB };
+}
 
 // ---------------------------------------------------------------- state
 const state = {
-  scale: 100, drape: 0, edgeR: 0, target: 2, opacity: 0.55, opacityM1: 1, opacityM2: 1,
-  show: { chone: true, mould1: true, mould2: true },
-  hinges: [], selected: null,
-  tool: 'draw', newFor: { chone: true, mould1: false, mould2: false }, moving: 'chone',
+  hinges: [], selected: null, item: 'chone',
+  show: {}, tool: 'draw', newFor: {}, moving: 'chone',
   noOverlap: false,
 };
-const ALL = () => ({ chone: true, mould1: true, mould2: true });
+const ALL = () => Object.fromEntries(PIECES.map(p => [p.key, true]));
 let hingeSeq = 0;
 function addHinge(h) {
   const hh = { id: ++hingeSeq, cache: {}, dist: {}, ...h, pieces: { ...(h.pieces || ALL()) } };
@@ -347,13 +455,14 @@ function nextBendName() {
 function updateHingeGeom(h) {
   const dx = h.b[0] - h.a[0], dy = h.b[1] - h.a[1], L = Math.hypot(dx, dy) || 1;
   h.ux = dx / L; h.uy = dy / L; h.len = L;
-  const main = onPieces(h)[0] || P.chone, A = anchorOf(main);
+  const main = onPieces(h).at(-1) || PIECES.at(-1), A = anchorOf(main);
   let nx = -h.uy, ny = h.ux;
   if ((A[0] - h.a[0]) * nx + (A[1] - h.a[1]) * ny > 0) { nx = -nx; ny = -ny; }
   if (h.flip) { nx = -nx; ny = -ny; }
   h.nx = nx; h.ny = ny;
+  h.cache = {}; h.dist = {};
   for (const p of PIECES) {
-    if (!h.pieces[p.key]) { h.cache[p.key] = null; continue; }
+    if (!h.pieces[p.key]) continue;
     // distance from this piece's anchor, for ordering (nearest bends are applied last / outermost)
     const B = anchorOf(p), t = Math.max(0, Math.min(L, (B[0] - h.a[0]) * h.ux + (B[1] - h.a[1]) * h.uy));
     h.dist[p.key] = Math.hypot(h.a[0] + h.ux * t - B[0], h.a[1] + h.uy * t - B[1]);
@@ -443,26 +552,26 @@ function bendPoint(v, h, p, d) {
   v[2] = z * c + cz * sn + zc;
 }
 
-// ---------------------------------------------------------------- Chone flat prep (scale, drape basis, stitch lookup)
-const drape = { e: null, qx: null, qy: null, nx: null, ny: null };
-let stitchBary = null, stitchM1 = null;
+// ---------------------------------------------------------------- flat prep (placement, edge-wrap basis, stitch lookup)
 // Re-place one piece on the sheet (scale, move, turn), then redo everything that depends on where it is.
 function updateFlat(p) {
-  const s = pieceScale(p);
   for (let i = 0; i < p.N; i++) { const q = place(p, p.base[2 * i], p.base[2 * i + 1]); p.flat[2 * i] = q[0]; p.flat[2 * i + 1] = q[1]; }
-  if (p === P.chone) {
-    for (let k = 0; k < stitchN; k++) { const q = place(p, stitchBase[2 * k], stitchBase[2 * k + 1]); stitchFlat[2 * k] = q[0]; stitchFlat[2 * k + 1] = q[1]; }
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (let i = 0; i < p.nB; i++) { x0 = Math.min(x0, p.base[2 * i]); x1 = Math.max(x1, p.base[2 * i]); y0 = Math.min(y0, p.base[2 * i + 1]); y1 = Math.max(y1, p.base[2 * i + 1]); }
-    $('choneSize').textContent = `Cut line ${((x1 - x0) * s).toFixed(2)}" wide × ${((y1 - y0) * s).toFixed(2)}" long. The 105–120% test files in the folder match these sizes.`;
-  }
+  if (p.stitchBase) for (let k = 0; k < p.stitchN; k++) { const q = place(p, p.stitchBase[2 * k], p.stitchBase[2 * k + 1]); p.stitchFlat[2 * k] = q[0]; p.stitchFlat[2 * k + 1] = q[1]; }
   p.grid = buildGrid(p);
   writeUV(p);
-  if (p === P.chone || p === P.mould1) prepChone();
+  for (const q of PIECES) if (isLeather(q) && q.grid && (q === p || below(q) === p)) prepLeather(q); // (a leather not placed yet is prepped when it is)
   for (const h of state.hinges) if (h.pieces[p.key]) updateHingeGeom(h);
 }
-// Move/turn a piece. Lines that bend only this piece travel with it; shared lines stay where they are.
-function setPose(p, np) { // np: any of x, y, rot, scale (mould size, %)
+// Width × length of a piece's outline at its current size.
+function sizeText(p) {
+  const s = pieceScale(p);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < p.nB; i++) { x0 = Math.min(x0, p.base[2 * i]); x1 = Math.max(x1, p.base[2 * i]); y0 = Math.min(y0, p.base[2 * i + 1]); y1 = Math.max(y1, p.base[2 * i + 1]); }
+  const w = (x1 - x0) * s, l = (y1 - y0) * s;
+  return `${w.toFixed(2)}" wide × ${l.toFixed(2)}" long (${(w * 2.54).toFixed(1)} × ${(l * 2.54).toFixed(1)} cm).`;
+}
+// Move/turn/scale a piece. Lines that bend only this piece travel with it; shared lines stay where they are.
+function setPose(p, np) { // np: any of x, y, rot, scale (%)
   const o = p.pose, n = { ...o, ...np };
   const s0 = pieceScale(p); p.pose = n; const s1 = pieceScale(p); p.pose = o;
   const C0 = pivotOf(p, s0), C1 = pivotOf(p, s1), a = -o.rot * DEG, b = n.rot * DEG;
@@ -486,14 +595,16 @@ function buildGrid(p) { // triangle grid for point lookups on a flat piece
   }
   return { G, grid };
 }
-function prepChone() {
-  const c = P.chone;
-  // drape basis: signed distance from Mould 1's outline (positive outside)
-  const m = P.mould1, mf = m.flat, mn = m.nB;
-  drape.e = new Float32Array(c.N); drape.qx = new Float32Array(c.N); drape.qy = new Float32Array(c.N);
-  drape.nx = new Float32Array(c.N); drape.ny = new Float32Array(c.N);
-  for (let i = 0; i < c.N; i++) {
-    const x = c.flat[2 * i], y = c.flat[2 * i + 1];
+// Leather prep, relative to the item right under it: the edge-wrap basis (signed distance from that item's
+// outline, positive outside) and, for the stitch line, where each stitch point sits on the leather and the
+// nearest outline point of the item under it (for seam reach).
+function prepLeather(p) {
+  const m = below(p);
+  p.wrap = null; p.stitchBary = null; p.stitchNear = null;
+  if (!m) return;
+  const mf = m.flat, mn = m.nB, w = { e: new Float32Array(p.N), qx: new Float32Array(p.N), qy: new Float32Array(p.N), nx: new Float32Array(p.N), ny: new Float32Array(p.N) };
+  for (let i = 0; i < p.N; i++) {
+    const x = p.flat[2 * i], y = p.flat[2 * i + 1];
     let bd = Infinity, bx = 0, by = 0;
     for (let k = 0; k < mn; k++) {
       const k2 = (k + 1) % mn, ax = mf[2 * k], ay = mf[2 * k + 1], ex = mf[2 * k2] - ax, ey = mf[2 * k2 + 1] - ay;
@@ -502,16 +613,18 @@ function prepChone() {
       if (dd < bd) { bd = dd; bx = px; by = py; }
     }
     const dist = Math.sqrt(bd), inside = pointInRing(mf, mn, x, y);
-    drape.e[i] = inside ? -dist : dist; drape.qx[i] = bx; drape.qy[i] = by;
-    drape.nx[i] = dist > 1e-6 ? (x - bx) / dist : 0; drape.ny[i] = dist > 1e-6 ? (y - by) / dist : 0;
+    w.e[i] = inside ? -dist : dist; w.qx[i] = bx; w.qy[i] = by;
+    w.nx[i] = dist > 1e-6 ? (x - bx) / dist : 0; w.ny[i] = dist > 1e-6 ? (y - by) / dist : 0;
   }
-  stitchBary = []; stitchM1 = new Int32Array(stitchN);
-  for (let k = 0; k < stitchN; k++) {
-    const x = stitchFlat[2 * k], y = stitchFlat[2 * k + 1];
-    stitchBary.push(locate(c, x, y));
+  p.wrap = w;
+  if (!p.stitchBase) return;
+  p.stitchBary = []; p.stitchNear = new Int32Array(p.stitchN);
+  for (let k = 0; k < p.stitchN; k++) {
+    const x = p.stitchFlat[2 * k], y = p.stitchFlat[2 * k + 1];
+    p.stitchBary.push(locate(p, x, y));
     let best = 0, bd = Infinity;
     for (let j = 0; j < mn; j++) { const dd = (mf[2 * j] - x) ** 2 + (mf[2 * j + 1] - y) ** 2; if (dd < bd) { bd = dd; best = j; } }
-    stitchM1[k] = best;
+    p.stitchNear[k] = best;
   }
 }
 function locate(p, x, y) {
@@ -545,32 +658,45 @@ const fill = new THREE.DirectionalLight(0xffffff, 0.6); fill.position.set(14, 6,
 const mat = new THREE.GridHelper(30, 30, 0x888888, 0x888888);
 mat.position.set(-2.4, -1.5, 0.5); mat.material.transparent = true; mat.material.opacity = 0.25; scene.add(mat);
 
-function buildMesh(p, color) {
-  const src = [], zl = [], idx = [];
-  if (!p.slab) { for (let i = 0; i < p.N; i++) { src.push(i); zl.push(0); } idx.push(...p.tris); }
-  else {
-    const N = p.N;
-    for (let i = 0; i < N; i++) { src.push(i); zl.push(1); } // zl: 1 = top face, 0 = bottom face
-    for (let i = 0; i < N; i++) { src.push(i); zl.push(0); }
-    for (let t = 0; t < p.tris.length; t += 3) { idx.push(p.tris[t], p.tris[t + 1], p.tris[t + 2]); idx.push(N + p.tris[t], N + p.tris[t + 2], N + p.tris[t + 1]); }
-    const w = 2 * N;
-    for (let k = 0; k < p.nB; k++) { src.push(k); zl.push(1); src.push(k); zl.push(0); }
-    for (let k = 0; k < p.nB; k++) {
-      const k2 = (k + 1) % p.nB, t0 = w + 2 * k, b0 = t0 + 1, t1 = w + 2 * k2, b1 = t1 + 1;
-      idx.push(b0, b1, t1, b0, t1, t0);
-    }
+// Every item is a slab: top face (render rows 0..N-1), bottom face, then the side wall.
+function buildMesh(p) {
+  const src = [], zl = [], idx = [], N = p.N;
+  for (let i = 0; i < N; i++) { src.push(i); zl.push(1); } // zl: 1 = top face, 0 = bottom face
+  for (let i = 0; i < N; i++) { src.push(i); zl.push(0); }
+  for (let t = 0; t < p.tris.length; t += 3) { idx.push(p.tris[t], p.tris[t + 1], p.tris[t + 2]); idx.push(N + p.tris[t], N + p.tris[t + 2], N + p.tris[t + 1]); }
+  const w = 2 * N;
+  for (let k = 0; k < p.nB; k++) { src.push(k); zl.push(1); src.push(k); zl.push(0); }
+  for (let k = 0; k < p.nB; k++) {
+    const k2 = (k + 1) % p.nB, t0 = w + 2 * k, b0 = t0 + 1, t1 = w + 2 * k2, b1 = t1 + 1;
+    idx.push(b0, b1, t1, b0, t1, t0);
   }
   const n = src.length, g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setIndex(idx);
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: p.slab ? 0.95 : 0.55, metalness: 0,
-    polygonOffset: true, polygonOffsetFactor: p.slab ? 1 : 0, polygonOffsetUnits: 1 });
+  const leather = isLeather(p);
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: KINDS[p.kind].roughness, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: leather ? 0 : 1, polygonOffsetUnits: 1 });
   const mesh = new THREE.Mesh(g, m);
-  mesh.userData.piece = p; p.mesh = mesh; p.src = Int32Array.from(src); p.zl = Float32Array.from(zl); p.baseColor = color;
+  mesh.userData.piece = p; mesh.renderOrder = leather ? 2 : 0;
+  p.mesh = mesh; p.src = Int32Array.from(src); p.zl = Float32Array.from(zl);
   scene.add(mesh);
+  if (leather) { // its cut edge, drawn as a line
+    p.edgeLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x000000 }));
+    p.edgeLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p.nB * 3), 3));
+    scene.add(p.edgeLine);
+  }
+  if (p.stitchBase) { // stitch line, coloured by seam reach
+    p.stitchLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true }));
+    p.stitchLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p.stitchN * 3), 3));
+    p.stitchLine.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(p.stitchN * 3), 3));
+    p.stitchLine.renderOrder = 3; scene.add(p.stitchLine);
+  }
   writeUV(p);
+}
+function disposePiece(p) {
+  for (const o of [p.mesh, p.edgeLine, p.stitchLine]) if (o) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
 }
 function writeUV(p) {
   if (!p.mesh) return;
@@ -578,16 +704,6 @@ function writeUV(p) {
   for (let r = 0; r < p.src.length; r++) { uv[2 * r] = p.flat[2 * p.src[r]]; uv[2 * r + 1] = p.flat[2 * p.src[r] + 1]; }
   p.mesh.geometry.attributes.uv.needsUpdate = true;
 }
-buildMesh(P.mould2, 'foam2'); buildMesh(P.mould1, 'foam1'); buildMesh(P.chone, 'accent');
-P.chone.mesh.renderOrder = 2;
-
-const edgeLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x000000 }));
-edgeLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P.chone.nB * 3), 3));
-scene.add(edgeLine);
-const stitchLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true }));
-stitchLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(stitchN * 3), 3));
-stitchLine.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(stitchN * 3), 3));
-stitchLine.renderOrder = 3; scene.add(stitchLine);
 const hingeLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true }));
 hingeLines.renderOrder = 4; scene.add(hingeLines);
 const pickMarker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
@@ -595,26 +711,37 @@ pickMarker.renderOrder = 5; pickMarker.visible = false; scene.add(pickMarker);
 
 // ---------------------------------------------------------------- deformation
 const tmp = [0, 0, 0];
-function choneLocal(i, out) {
-  const c = P.chone, x = c.flat[2 * i], y = c.flat[2 * i + 1], e = drape.e[i];
-  if (e <= 0) { out[0] = x; out[1] = y; out[2] = HTOP; return; }
-  const psi = state.drape * DEG, rho = state.edgeR, qx = drape.qx[i], qy = drape.qy[i], nx = drape.nx[i], ny = drape.ny[i];
+// Where render row r of a leather item sits before any bend: flat on top of its stack slot, or, past the outline of
+// the item under it, folded down over that edge by its Edge wrap (psi) round its Edge rounding (rho). The bottom face
+// follows the wrap (so it hugs the side of the item under it); the top face is the item's thickness out from it,
+// along the wrapped surface's normal.
+function leatherLocal(p, i, r, out) {
+  const x = p.flat[2 * i], y = p.flat[2 * i + 1], top = p.zl[r] === 1, w = p.wrap;
+  let e = w ? w.e[i] : -1;
+  if (e <= LEATHER_GAP || !p.drape) { out[0] = x; out[1] = y; out[2] = top ? p.z1 : p.z0; return; }
+  const nx = w.nx[i], ny = w.ny[i], qx = w.qx[i] + nx * LEATHER_GAP, qy = w.qy[i] + ny * LEATHER_GAP; // the same small gap off the side as above the top
+  const psi = p.drape * DEG, rho = p.edgeR, Z = p.z0;
   const arc = rho * psi;
+  e -= LEATHER_GAP; // measured from the gapped edge
+  let a;
   if (rho > 1e-4 && e <= arc) {
-    const a = e / rho;
-    out[0] = qx + nx * rho * Math.sin(a); out[1] = qy + ny * rho * Math.sin(a); out[2] = HTOP - rho + rho * Math.cos(a);
+    a = e / rho;
+    out[0] = qx + nx * rho * Math.sin(a); out[1] = qy + ny * rho * Math.sin(a); out[2] = Z - rho + rho * Math.cos(a);
   } else {
-    const ex = rho * Math.sin(psi), ez = HTOP - rho + rho * Math.cos(psi), t = e - arc;
+    a = psi;
+    const ex = rho * Math.sin(psi), ez = Z - rho + rho * Math.cos(psi), t = e - arc;
     const hzn = ex + t * Math.cos(psi);
     out[0] = qx + nx * hzn; out[1] = qy + ny * hzn; out[2] = ez - t * Math.sin(psi);
   }
+  if (top) { const t = p.thick, sa = Math.sin(a); out[0] += t * nx * sa; out[1] += t * ny * sa; out[2] += t * Math.cos(a); }
 }
-// Bent positions of one piece, in the mesh's vertex layout. inset pulls a slab's faces in (used by the overlap check).
+// Bent positions of one piece, in the mesh's vertex layout. inset pulls the faces in (used by the overlap check).
 function deformInto(p, order, pos, inset = 0) { // order: only the bends that act on this piece
-  const src = p.src, zl = p.zl;
+  const src = p.src, zl = p.zl, leather = isLeather(p);
   for (let r = 0; r < src.length; r++) {
     const i = src[r];
-    if (p.slab) { tmp[0] = p.flat[2 * i]; tmp[1] = p.flat[2 * i + 1]; tmp[2] = zl[r] ? p.z1 - inset : p.z0 + inset; } else choneLocal(i, tmp);
+    if (leather) { leatherLocal(p, i, r, tmp); tmp[2] += zl[r] ? -inset : inset; }
+    else { tmp[0] = p.flat[2 * i]; tmp[1] = p.flat[2 * i + 1]; tmp[2] = zl[r] ? p.z1 - inset : p.z0 + inset; }
     for (let k = order.length - 1; k >= 0; k--) {
       const hc = order[k].cache[p.key];
       if (hc.free[i]) bendPoint(tmp, order[k], p, hc.d[i]);
@@ -629,7 +756,7 @@ function deformPiece(p, order) {
 }
 const cTmp = new THREE.Color(), cWhite = new THREE.Color(0xffffff);
 function colorPiece(p) {
-  const col = p.mesh.geometry.attributes.color.array, base = new THREE.Color(css('--' + p.baseColor));
+  const col = p.mesh.geometry.attributes.color.array, base = new THREE.Color(colorOf(p));
   const sel = state.hinges.find(h => h.id === state.selected), hov = state.hinges.find(h => h.id === hover.id);
   const fs = sel?.cache[p.key]?.free ?? null, fh = hov?.cache[p.key]?.free ?? null, ov = overlapRows[p.key], red = ov && new THREE.Color(css('--bad'));
   for (let r = 0; r < p.src.length; r++) {
@@ -657,51 +784,64 @@ function pointAt(p, b, out) {
     out[k + 3] = nor[3 * a + k] * w0 + nor[3 * bb + k] * w1 + nor[3 * c + k] * w2;
   }
 }
-function updateStitch() {
-  const sp = stitchLine.geometry.attributes.position.array, sc = stitchLine.geometry.attributes.color.array;
-  const m1 = P.mould1.mesh.geometry.attributes.position.array, N1 = P.mould1.N;
+// Seam reach of a leather item with a stitch line: how far down the edge of the item under it each stitch point
+// ends up, measured from that item's top face along its side wall. The stitch line is coloured to match.
+function updateStitch(p) {
+  const line = p.stitchLine, m = below(p);
+  p.reach = null;
+  if (!line || !m || !p.stitchBary) return;
+  const sp = line.geometry.attributes.position.array, sc = line.geometry.attributes.color.array;
+  const mp = m.mesh.geometry.attributes.position.array, Nm = m.N;
   const ok = new THREE.Color(css('--ok')), warn = new THREE.Color(css('--warn')), bad = new THREE.Color(css('--bad')), grey = new THREE.Color(css('--muted'));
   const o = [0, 0, 0, 0, 0, 0];
   let minD = Infinity, minK = -1, good = 0, counted = 0;
-  for (let k = 0; k < stitchN; k++) {
-    const b = stitchBary[k];
-    if (!b) { continue; }
-    pointAt(P.chone, b, o);
+  for (let k = 0; k < p.stitchN; k++) {
+    const b = p.stitchBary[k];
+    if (!b) continue;
+    pointAt(p, b, o);
     const nl = Math.hypot(o[3], o[4], o[5]) || 1;
     sp[3 * k] = o[0] + o[3] / nl * 0.03; sp[3 * k + 1] = o[1] + o[4] / nl * 0.03; sp[3 * k + 2] = o[2] + o[5] / nl * 0.03;
     let c = grey;
-    const wrist = stitchBase[2 * k + 1] < 0.02;
-    if (!wrist) {
-      const j = stitchM1[k];
-      const tx = m1[3 * j], ty = m1[3 * j + 1], tz = m1[3 * j + 2];
-      const bx = m1[3 * (N1 + j)] - tx, by = m1[3 * (N1 + j) + 1] - ty, bz = m1[3 * (N1 + j) + 2] - tz;
+    if (p.stitchBase[2 * k + 1] >= p.wristY) { // the Chone's wrist edge is sewn to the cuff: left out
+      const j = p.stitchNear[k];
+      const tx = mp[3 * j], ty = mp[3 * j + 1], tz = mp[3 * j + 2];
+      const bx = mp[3 * (Nm + j)] - tx, by = mp[3 * (Nm + j) + 1] - ty, bz = mp[3 * (Nm + j) + 2] - tz;
       const bl = Math.hypot(bx, by, bz) || 1;
       const depth = ((o[0] - tx) * bx + (o[1] - ty) * by + (o[2] - tz) * bz) / bl;
       counted++;
-      if (depth >= state.target) { c = ok; good++; } else if (depth >= state.target - 0.5) c = warn; else c = bad;
+      if (depth >= p.target) { c = ok; good++; } else if (depth >= p.target - 0.5) c = warn; else c = bad;
       if (depth < minD) { minD = depth; minK = k; }
     }
     sc[3 * k] = c.r; sc[3 * k + 1] = c.g; sc[3 * k + 2] = c.b;
   }
-  stitchLine.geometry.attributes.position.needsUpdate = true; stitchLine.geometry.attributes.color.needsUpdate = true;
-  if (minK >= 0) {
-    $('reachVal').textContent = `${minD.toFixed(2)}"`;
-    $('reachVal').style.color = minD >= state.target ? css('--ok') : minD >= state.target - 0.5 ? css('--warn') : css('--bad');
-    $('reachWhere').textContent = `${regionName(stitchBase[2 * minK], stitchBase[2 * minK + 1])}. Target ${state.target.toFixed(2)}". ${Math.round(good / counted * 100)}% of the seam reaches it.`;
-  }
+  line.geometry.attributes.position.needsUpdate = true; line.geometry.attributes.color.needsUpdate = true;
+  if (minK >= 0) p.reach = { minD, minK, good, counted };
 }
-function updateEdge() {
-  const pos = P.chone.mesh.geometry.attributes.position.array, e = edgeLine.geometry.attributes.position.array;
-  for (let k = 0; k < P.chone.nB * 3; k++) e[k] = pos[k];
-  edgeLine.geometry.attributes.position.needsUpdate = true;
-  edgeLine.material.color.set(css('--fg'));
+// The seam-reach box over the 3D view shows the chosen item if it has a seam reach, else the first one that does.
+function reachItem() { const c = P[state.item]; return c?.reach ? c : PIECES.find(p => p.reach && state.show[p.key]) || null; }
+function updateReachBox() {
+  const p = reachItem();
+  $('reach').hidden = !p;
+  if (!p) return;
+  const { minD, minK, good, counted } = p.reach;
+  $('reachLbl').textContent = `${p.label}: shortest seam reach`;
+  $('reachVal').textContent = `${minD.toFixed(2)}"`;
+  $('reachVal').style.color = minD >= p.target ? css('--ok') : minD >= p.target - 0.5 ? css('--warn') : css('--bad');
+  $('reachWhere').textContent = `${regionName(p.stitchBase[2 * minK], p.stitchBase[2 * minK + 1])}. Target ${p.target.toFixed(2)}". ${Math.round(good / counted * 100)}% of the seam reaches it.`;
+}
+function updateEdge(p) {
+  if (!p.edgeLine) return;
+  const pos = p.mesh.geometry.attributes.position.array, e = p.edgeLine.geometry.attributes.position.array;
+  for (let k = 0; k < p.nB * 3; k++) e[k] = pos[k];
+  p.edgeLine.geometry.attributes.position.needsUpdate = true;
+  p.edgeLine.material.color.set(css('--fg'));
 }
 function updateHingeLines() {
   const verts = [], cols = [], o = [0, 0, 0, 0, 0, 0];
   const bg = new THREE.Color(css('--scene'));
   for (const h of state.hinges) {
     // drawn on the top-most shown piece the line bends; dimmed unless selected
-    const p = visPieces(h)[0];
+    const p = visPieces(h).at(-1);
     if (!p) continue;
     const hc = h.cache[p.key], S = 40, col = new THREE.Color(lineColor(h));
     if (h.id !== state.selected) col.lerp(bg, 0.35);
@@ -719,11 +859,12 @@ function updateHingeLines() {
   g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
 }
 // A line takes its piece's colour; a line shared by several pieces is drawn in the text colour.
-function lineColor(h) { const ps = onPieces(h); return ps.length === 1 ? css('--' + ps[0].col) : css('--fg'); }
+function lineColor(h) { const ps = onPieces(h); return ps.length === 1 ? colorOf(ps[0]) : css('--fg'); }
 let dirty = true, colorsDirty = true;
 function refresh() {
   for (const p of PIECES) deformPiece(p, orderFor(p));
-  updateEdge(); updateStitch(); updateHingeLines();
+  for (const p of PIECES) { updateEdge(p); updateStitch(p); }
+  updateReachBox(); updateHingeLines();
   scheduleOverlapCheck();
 }
 
@@ -738,14 +879,15 @@ function refresh() {
 // the first level at which they come apart. A change may not push them deeper than that.
 const SQUISH = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4], COL_CELL = 0.35;
 const colBuf = {};
+const dropColBuf = key => { for (const k of Object.keys(colBuf)) if (k.startsWith(key + '|')) delete colBuf[k]; };
 function colGeom(p, lv = 0) { // bent positions + triangle boxes for the check
-  const ck = p.key + lv;
+  const ck = p.key + '|' + lv;
   let b = colBuf[ck];
   if (!b) {
     const idx = p.mesh.geometry.index.array;
     b = colBuf[ck] = { p, idx, pos: new Float32Array(p.src.length * 3), box: new Float32Array(idx.length * 2), nT: idx.length / 3 };
   }
-  deformInto(p, orderFor(p), b.pos, p.slab ? Math.min(SQUISH[lv], p.thick / 2 - 0.01) : 0);
+  deformInto(p, orderFor(p), b.pos, Math.max(0, Math.min(SQUISH[lv], p.thick / 2 - 0.01)));
   const { idx, pos, box } = b;
   for (let t = 0; t < b.nT; t++) {
     const a = 3 * idx[3 * t], c = 3 * idx[3 * t + 1], e = 3 * idx[3 * t + 2], o = 6 * t;
@@ -825,8 +967,8 @@ function piecePairs(only) {
 function overlaps(only = null, base = null, easing = false) {
   const g = {}, out = [];
   for (const [p, q] of piecePairs(only)) {
-    if (easing && base?.[p.key + q.key]) continue;
-    const pk = p.key + q.key, deep = (base?.[pk] ?? 0) >= SQUISH.length, lv = deep ? SQUISH.length - 1 : base?.[pk] ?? 0;
+    if (easing && base?.[p.key + '|' + q.key]) continue;
+    const pk = p.key + '|' + q.key, deep = (base?.[pk] ?? 0) >= SQUISH.length, lv = deep ? SQUISH.length - 1 : base?.[pk] ?? 0;
     const allow = deep ? base[pk + '#'] + Math.max(2, Math.ceil(base[pk + '#'] * 0.05)) : 0; // a little slack for mesh noise
     const A = g[p.key + lv] ??= colGeom(p, lv), B = g[q.key + lv] ??= colGeom(q, lv);
     if (piecesCross(A, B, allow) > allow) out.push([p, q]);
@@ -838,8 +980,8 @@ function overlapDepths(only = null) { // per pair: the first SQUISH level at whi
   for (const [p, q] of piecePairs(only)) {
     let lv = 0;
     for (; lv < SQUISH.length; lv++) if (!piecesCross(g[p.key + lv] ??= colGeom(p, lv), g[q.key + lv] ??= colGeom(q, lv))) break;
-    out[p.key + q.key] = lv;
-    if (lv === SQUISH.length) out[p.key + q.key + '#'] = piecesCross(g[p.key + (lv - 1)], g[q.key + (lv - 1)], Infinity);
+    out[p.key + '|' + q.key] = lv;
+    if (lv === SQUISH.length) out[p.key + '|' + q.key + '#'] = piecesCross(g[p.key + (lv - 1)], g[q.key + (lv - 1)], Infinity);
   }
   return out;
 }
@@ -902,7 +1044,7 @@ function guardCore(h, key, v, old) {
   const unit = key === 'radius' ? '"' : '°', what = { angle: 'Bend angle', twist: 'Rotate', radius: 'Bend radius' }[key];
   const hid = [...new Set(hit.flat().filter(p => !state.show[p.key]))];
   if (hid.length) toast(`You've bumped into hidden ${hid.map(p => p.label).join(' and ')}.`);
-  guardNote = `${what} stopped at ${h[key]}${unit}: ${pairText(hit)} would overlap${hit.some(([p, q]) => base[p.key + q.key]) ? ' more' : ''}.`;
+  guardNote = `${what} stopped at ${h[key]}${unit}: ${pairText(hit)} would overlap${hit.some(([p, q]) => base[p.key + '|' + q.key]) ? ' more' : ''}.`;
   return h[key];
 }
 // A short alert over the 3D view (bumping into a hidden piece). Stays 3 s after the last bump.
@@ -917,8 +1059,8 @@ function scheduleOverlapCheck() {
   if (!state.noOverlap) { overlapNote(''); if (Object.keys(overlapRows).length) { overlapRows = {}; colorsDirty = true; } return; }
   overlapTimer = setTimeout(() => {
     markOverlaps(); colorsDirty = true;
-    const dp = overlapDepths(), o = piecePairs().filter(([p, q]) => dp[p.key + q.key]);
-    const depth = ([p, q]) => { const lv = dp[p.key + q.key]; return lv >= SQUISH.length ? "deep" : `up to ${SQUISH[lv]}"`; };
+    const dp = overlapDepths(), o = piecePairs().filter(([p, q]) => dp[p.key + '|' + q.key]);
+    const depth = ([p, q]) => { const lv = dp[p.key + '|' + q.key]; return lv >= SQUISH.length ? "deep" : `up to ${SQUISH[lv]}"`; };
     if (o.length) overlapNote(`Already overlapping (marked red in 3D): ${o.map(pq => `${pieceName(pq[0])} and ${pieceName(pq[1])} (${depth(pq)})`).join(', ')}. The stop keeps it from getting worse; ease a bend or Rotate back to clear it.${guardNote ? '<br>' + guardNote : ''}`, true);
     else overlapNote(guardNote);
   }, 120);
@@ -928,12 +1070,11 @@ function scheduleOverlapCheck() {
 function applyAppearance() {
   scene.background = new THREE.Color(css('--scene'));
   mat.material.color.set(css('--grid'));
-  for (const [p, o] of [[P.chone, state.opacity], [P.mould1, state.opacityM1], [P.mould2, state.opacityM2]]) { // see-through, per piece
-    const m = p.mesh.material;
+  for (const p of PIECES) { // see-through and shown, per item
+    const m = p.mesh.material, o = p.opacity, on = !!state.show[p.key];
     m.opacity = o; m.transparent = o < 1; m.depthWrite = o >= 1; m.needsUpdate = true;
+    p.mesh.visible = on; if (p.edgeLine) p.edgeLine.visible = on; if (p.stitchLine) p.stitchLine.visible = on;
   }
-  P.chone.mesh.visible = state.show.chone; edgeLine.visible = state.show.chone; stitchLine.visible = state.show.chone;
-  P.mould1.mesh.visible = state.show.mould1; P.mould2.mesh.visible = state.show.mould2;
   colorsDirty = true; dirty = true; drawFlat();
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAppearance);
@@ -1058,7 +1199,7 @@ function drawFlat() {
     fctx.globalAlpha = 0.22;
     for (const p of visPieces(sel)) {
       const fr = sel.cache[p.key].free, T = p.tris, f = p.flat;
-      fctx.fillStyle = css('--' + p.col); fctx.beginPath();
+      fctx.fillStyle = colorOf(p); fctx.beginPath();
       for (let t = 0; t < T.length; t += 3) if (fr[T[t]] && fr[T[t + 1]] && fr[T[t + 2]]) {
         fctx.moveTo(fx(f[2 * T[t]]), fy(f[2 * T[t] + 1])); fctx.lineTo(fx(f[2 * T[t + 1]]), fy(f[2 * T[t + 1] + 1])); fctx.lineTo(fx(f[2 * T[t + 2]]), fy(f[2 * T[t + 2] + 1]));
       }
@@ -1066,12 +1207,12 @@ function drawFlat() {
     }
     fctx.globalAlpha = 1;
   }
-  for (const p of [P.mould2, P.mould1, P.chone]) {
+  for (const p of PIECES) { // bottom of the stack first; the chosen item (or the one being moved) drawn heavier
     if (!state.show[p.key]) continue;
-    const active = moving && state.moving === p.key;
-    ringPath(p.flat, p.nB); fctx.strokeStyle = css(p === P.chone ? '--fg' : '--' + p.col); fctx.lineWidth = active ? 2.6 : 1.3; fctx.stroke();
+    const active = moving ? state.moving === p.key : state.item === p.key;
+    ringPath(p.flat, p.nB); fctx.strokeStyle = p.col === 'accent' ? css('--fg') : colorOf(p); fctx.lineWidth = active ? 2.6 : 1.3; fctx.stroke();
+    if (p.stitchBase) { fctx.setLineDash([3, 3]); ringPath(p.stitchFlat, p.stitchN); fctx.strokeStyle = css('--muted'); fctx.lineWidth = 1; fctx.stroke(); fctx.setLineDash([]); }
   }
-  if (state.show.chone) { fctx.setLineDash([3, 3]); ringPath(stitchFlat, stitchN); fctx.strokeStyle = css('--muted'); fctx.lineWidth = 1; fctx.stroke(); fctx.setLineDash([]); }
   for (const h of state.hinges) {
     if (!lineVisible(h)) continue;
     const ps = visPieces(h), on = h.id === state.selected, col = lineColor(h);
@@ -1089,14 +1230,14 @@ function drawFlat() {
     }
     fctx.globalAlpha = 1;
   }
-  if (moving) { // centre the piece turns about
+  if (moving && P[state.moving]) { // centre the piece turns about
     const c = centerOf(P[state.moving]), X = fx(c[0]), Y = fy(c[1]);
     fctx.strokeStyle = css('--fg'); fctx.lineWidth = 1.5; fctx.beginPath();
     fctx.moveTo(X - 6, Y); fctx.lineTo(X + 6, Y); fctx.moveTo(X, Y - 6); fctx.lineTo(X, Y + 6); fctx.stroke();
   }
   if (flatDraft) {
     const nt = newTargets(), ps = PIECES.filter(p => nt[p.key]);
-    fctx.strokeStyle = ps.length === 1 ? css('--' + ps[0].col) : css('--fg'); fctx.setLineDash([5, 4]); fctx.lineWidth = 2; fctx.beginPath();
+    fctx.strokeStyle = ps.length === 1 ? colorOf(ps[0]) : css('--fg'); fctx.setLineDash([5, 4]); fctx.lineWidth = 2; fctx.beginPath();
     fctx.moveTo(fx(flatDraft.a[0]), fy(flatDraft.a[1])); fctx.lineTo(fx(flatDraft.b[0]), fy(flatDraft.b[1])); fctx.stroke(); fctx.setLineDash([]);
   }
   fctx.fillStyle = css('--muted'); fctx.font = '11px ' + css('--font-mono');
@@ -1171,11 +1312,11 @@ flat.addEventListener('pointerup', ev => {
 
 // ---------------------------------------------------------------- panel wiring
 function select(id) { state.selected = id; colorsDirty = true; dirty = true; syncBendBox(); renderBendList(); drawFlat(); }
-function swatch(p) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = `var(--${p.col})`; s.title = p.label; return s; }
-// A row of Chone / Mould 1 / Mould 2 chips.
+function swatch(p) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = colorVar(p); s.title = p.label; return s; }
+// A row of item chips, top of the stack first.
 function pieceChips(box, isOn, onClick, isDisabled = () => false) {
   box.textContent = '';
-  for (const p of PIECES) {
+  for (const p of topFirst()) {
     const b = document.createElement('button');
     b.className = 'chip'; b.setAttribute('aria-pressed', String(isOn(p)));
     if (isDisabled(p)) { b.disabled = true; b.title = `${p.label} is hidden. Show it to use it here.`; }
@@ -1189,7 +1330,7 @@ const byName = (x, y) => x.name.localeCompare(y.name, undefined, { numeric: true
 function renderBendList() {
   const box = $('bendList'); box.textContent = '';
   const groups = [
-    ...PIECES.map(p => ({ title: p.label, sw: [p], shown: state.show[p.key], match: h => { const ps = onPieces(h); return ps.length === 1 && ps[0] === p; } })),
+    ...topFirst().map(p => ({ title: p.label, sw: [p], shown: state.show[p.key], match: h => { const ps = onPieces(h); return ps.length === 1 && ps[0] === p; } })),
     { title: 'Shared', sw: [], shown: true, match: h => onPieces(h).length > 1 },
   ];
   let shown = 0;
@@ -1227,10 +1368,10 @@ function syncBendBox() {
   $('radius').value = h.radius; $('radiusOut').textContent = `${(+h.radius).toFixed(2)}"`;
   const chip = $('bendList').querySelector(`[data-id="${h.id}"] .t`);
   if (chip) chip.textContent = chipText(h);
-  const forKey = String(h.id) + JSON.stringify(h.pieces) + JSON.stringify(state.show);
+  const forKey = String(h.id) + JSON.stringify(h.pieces) + JSON.stringify(state.show) + PIECES.map(p => p.key + p.label).join();
   if ($('bendFor').dataset.for !== forKey) {
     $('bendFor').dataset.for = forKey;
-    pieceChips($('bendFor'), p => h.pieces[p.key], p => {
+    pieceChips($('bendFor'), p => !!h.pieces[p.key], p => {
       const n = { ...h.pieces, [p.key]: !h.pieces[p.key] };
       if (!Object.values(n).some(Boolean)) return; // a line has to bend something
       checkpoint(); h.pieces = n; updateHingeGeom(h);
@@ -1240,6 +1381,16 @@ function syncBendBox() {
 }
 function chipText(h) { return `${h.name} · ${h.angle}°` + (h.twist ? ` ↻${h.twist}°` : ''); }
 function selH() { return state.hinges.find(x => x.id === state.selected); }
+
+// ---------------------------------------------------------------- tabs
+const TABS = ['items', 'flat', 'config'];
+function setTab(t) {
+  if (t === 'bends') t = 'flat'; // Flat pattern and Bend lines used to be separate tabs
+  if (!TABS.includes(t)) t = 'items';
+  for (const k of TABS) { $('tab-' + k).hidden = k !== t; document.querySelector(`.tab[data-tab="${k}"]`).setAttribute('aria-selected', String(k === t)); }
+  try { localStorage.setItem('chone-fit-lab-tab', t); } catch (e) { /* fine */ }
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
 // Flat-pattern tools
 const NOTES = {
@@ -1261,7 +1412,7 @@ $('toolMove').addEventListener('click', () => setTool('move'));
 function newTargets() { return Object.fromEntries(PIECES.map(p => [p.key, !!(state.newFor[p.key] && state.show[p.key])])); }
 function canDraw() { return Object.values(newTargets()).some(Boolean); }
 function renderNewFor() {
-  pieceChips($('newFor'), p => state.newFor[p.key], p => {
+  pieceChips($('newFor'), p => !!state.newFor[p.key], p => {
     const n = { ...state.newFor, [p.key]: !state.newFor[p.key] };
     if (!Object.values(n).some(Boolean)) return;
     state.newFor = n; renderNewFor(); save();
@@ -1273,50 +1424,140 @@ function renderNewFor() {
 }
 function setMoving(k) { state.moving = k; renderMoveWhich(); syncMoveBox(); drawFlat(); }
 function renderMoveWhich() {
-  if (!state.show[state.moving]) { const v = PIECES.find(p => state.show[p.key]); if (v) { state.moving = v.key; syncMoveBox(); } }
+  if (!P[state.moving] || !state.show[state.moving]) { const v = topFirst().find(p => state.show[p.key]) || PIECES.at(-1); if (v) state.moving = v.key; }
   pieceChips($('moveWhich'), p => state.moving === p.key, p => setMoving(p.key), p => !state.show[p.key]);
 }
 function syncMoveBox() {
-  const m = P[state.moving], o = m.pose, sg = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  const m = P[state.moving]; if (!m) return;
+  const o = m.pose, sg = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
   $('rot').value = o.rot; $('rotOut').textContent = `${o.rot.toFixed(1)}°`;
   $('poseOut').textContent = (o.x || o.y || o.rot)
-    ? `${m.label}: moved ${sg(o.x)}" across, ${sg(o.y)}" along, turned ${o.rot.toFixed(1)}° from the auto-fit position.`
-    : `${m.label} is at its auto-fit position.`;
+    ? `${m.label}: moved ${sg(o.x)}" across, ${sg(o.y)}" along, turned ${o.rot.toFixed(1)}° from where it started.`
+    : `${m.label} is where it started.`;
 }
-function poseChanged() { syncMoveBox(); colorsDirty = dirty = true; drawFlat(); save(); }
-$('rot').addEventListener('input', e => { checkpoint('rot' + state.moving); const m = P[state.moving]; setPose(m, { ...m.pose, rot: +e.target.value }); poseChanged(); });
-$('resetPose').addEventListener('click', () => { checkpoint(); setPose(P[state.moving], { x: 0, y: 0, rot: 0 }); poseChanged(); });
-$('resetPoses').addEventListener('click', () => { checkpoint(); for (const p of [P.mould2, P.mould1, P.chone]) setPose(p, { x: 0, y: 0, rot: 0 }); poseChanged(); });
+function poseChanged() { syncMoveBox(); syncItemBox(); colorsDirty = dirty = true; drawFlat(); save(); }
+$('rot').addEventListener('input', e => { const m = P[state.moving]; if (!m) return; checkpoint('rot' + state.moving); setPose(m, { ...m.pose, rot: +e.target.value }); poseChanged(); });
+$('resetPose').addEventListener('click', () => { const m = P[state.moving]; if (!m) return; checkpoint(); setPose(m, { x: 0, y: 0, rot: 0 }); poseChanged(); });
+$('resetPoses').addEventListener('click', () => { checkpoint(); for (const p of PIECES) setPose(p, { x: 0, y: 0, rot: 0 }); poseChanged(); });
 
-// Mould sizes
-const MOULD_SIZE = [['m1scale', 'mould1', 'm1size'], ['m2scale', 'mould2', 'm2size']];
-function syncMouldSizes() {
-  for (const [id, key, note] of MOULD_SIZE) {
-    const p = P[key], s = pieceScale(p);
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (let i = 0; i < p.nB; i++) { x0 = Math.min(x0, p.base[2 * i]); x1 = Math.max(x1, p.base[2 * i]); y0 = Math.min(y0, p.base[2 * i + 1]); y1 = Math.max(y1, p.base[2 * i + 1]); }
-    $(id).value = s * 100; $(id + 'Out').textContent = `${(s * 100).toFixed(1)}%`;
-    $(note).textContent = `${((x1 - x0) * s).toFixed(2)}" wide × ${((y1 - y0) * s).toFixed(2)}" long (${((x1 - x0) * s * 2.54).toFixed(1)} × ${((y1 - y0) * s * 2.54).toFixed(1)} cm).`;
+// ---------------------------------------------------------------- Items tab
+const chosen = () => P[state.item] || PIECES.at(-1);
+function chooseItem(k) { state.item = k; renderItems(); syncItemBox(); drawFlat(); updateReachBox(); save(); }
+function renderItems() {
+  const box = $('itemList'); box.textContent = '';
+  for (const p of topFirst()) {
+    const row = document.createElement('div'), on = !!state.show[p.key];
+    row.className = 'item' + (p.key === state.item ? ' sel' : '') + (on ? '' : ' off');
+    row.tabIndex = 0; row.setAttribute('role', 'button'); row.setAttribute('aria-pressed', String(p.key === state.item));
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.label;
+    const kind = document.createElement('span'); kind.className = 'kind'; kind.textContent = p.kind === 'leather' ? `leather · ${(p.thick / MM).toFixed(1)} mm` : `mould · ${p.thick.toFixed(2)}"`;
+    const eye = document.createElement('button'); eye.className = 'eye'; eye.setAttribute('aria-pressed', String(on));
+    eye.textContent = on ? 'Shown' : 'Hidden'; eye.title = on ? `Hide ${p.label}` : `Show ${p.label}`;
+    eye.addEventListener('click', e => { e.stopPropagation(); setShown(p.key, !state.show[p.key]); });
+    row.append(swatch(p), nm, kind, eye);
+    row.addEventListener('click', () => chooseItem(p.key));
+    row.addEventListener('keydown', e => { if (e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); chooseItem(p.key); } });
+    box.appendChild(row);
   }
 }
-for (const [id, key] of MOULD_SIZE) $(id).addEventListener('input', e => { checkpoint('size' + key); setPose(P[key], { scale: +e.target.value }); syncMouldSizes(); poseChanged(); });
-// Mould thickness. If the seam-reach target was the full foam stack, it follows the new total.
-const MOULD_THICK = [['m1thick', 'mould1'], ['m2thick', 'mould2']];
-function syncThickness() {
-  for (const [id, key] of MOULD_THICK) { const t = P[key].thick; $(id).value = t; $(id + 'Out').textContent = `${t.toFixed(2)}"`; }
-  const T = foamTotal();
-  $('foamTotalNote').textContent = `Foam stack ${T.toFixed(2)}" (${(T * 25.4).toFixed(0)} mm): Mould 1 ${(P.mould1.thick * 25.4).toFixed(0)} mm on top of Mould 2 ${(P.mould2.thick * 25.4).toFixed(0)} mm.`;
-  $('foamTotalInline').textContent = `${T.toFixed(2)}"`;
+function setShown(k, on) {
+  state.show[k] = on;
+  const sel = selH();
+  if (sel && !lineVisible(sel)) select(null); else { renderBendList(); syncBendBox(); }
+  renderItems(); syncItemBox(); renderNewFor(); renderMoveWhich(); drawFlat();
+  applyAppearance(); save();
 }
-function setThickness(key, t) {
-  const followTarget = Math.abs(state.target - foamTotal()) < 0.01;
-  P[key].thick = t; applyThickness();
-  if (followTarget) { state.target = Math.round(foamTotal() * 100) / 100; $('target').value = state.target; $('targetOut').textContent = `${state.target.toFixed(2)}"`; }
-  syncThickness(); dirty = colorsDirty = true; save();
+function syncItemBox() {
+  const p = chosen(); if (!p) { $('itemBox').hidden = true; return; }
+  $('itemBox').hidden = false;
+  if (document.activeElement !== $('itemName')) $('itemName').value = p.label;
+  const leather = isLeather(p), i = PIECES.indexOf(p), b = below(p);
+  $('itemKind').textContent = `${KINDS[p.kind].label}${p.builtin ? '' : ', added from a DXF'}.`;
+  $('itemShow').checked = !!state.show[p.key];
+  $('itOpacity').value = p.opacity; $('itOpacityOut').textContent = `${Math.round(p.opacity * 100)}%`;
+  $('itScale').value = p.pose.scale ?? 100; $('itScaleOut').textContent = `${(p.pose.scale ?? 100).toFixed(1)}%`;
+  $('itSize').textContent = (leather ? 'Cut line ' : '') + sizeText(p) + (p.scaleOrigin ? ' Scales about the wrist edge; the 105–120% test files in the folder match these sizes.' : ' Scales about its own centre.');
+  $('rowThickIn').hidden = leather; $('rowThickMm').hidden = !leather;
+  $('itThickIn').value = p.thick; $('itThickInOut').textContent = `${p.thick.toFixed(2)}"`;
+  $('itThickMm').value = p.thick / MM; $('itThickMmOut').textContent = `${(p.thick / MM).toFixed(1)} mm`;
+  $('itStack').textContent = `Layer ${i + 1} of ${PIECES.length} from the palm face, ${p.z0.toFixed(2)}" to ${p.z1.toFixed(2)}" up` + (b ? `, on top of ${b.label}.` : ', at the bottom of the stack.');
+  $('itLeather').hidden = !leather;
+  if (leather) {
+    $('itDrape').value = p.drape; $('itDrapeOut').textContent = `${p.drape}°`;
+    $('itEdgeR').value = p.edgeR; $('itEdgeROut').textContent = `${(+p.edgeR).toFixed(2)}"`;
+    $('itWrapNote').textContent = b ? `Folds the leather that sticks out past ${b.label} down over its edge. 90° hangs it straight down the side.` : 'Nothing under this item to wrap over.';
+    const hasReach = !!(p.stitchBase && b);
+    $('itReach').hidden = !hasReach; $('itNoStitch').hidden = !!p.stitchBase;
+    $('itTarget').value = p.target; $('itTargetOut').textContent = `${p.target.toFixed(2)}"`;
+    if (hasReach) $('itReachNote').textContent = `How far down the edge of ${b.label} the stitch line ends up, measured from its top face. The moulds under ${p.label} are ${foamBelow(p).toFixed(2)}" thick.` + (p.wristY > -Infinity ? ' The wrist edge is left out because it\'s sewn to the cuff.' : '');
+  }
+  $('itemUp').disabled = i === PIECES.length - 1; $('itemDown').disabled = i === 0;
+  $('itemDel').disabled = PIECES.length <= 1;
 }
-for (const [id, key] of MOULD_THICK) $(id).addEventListener('input', e => { checkpoint('thick' + key); setThickness(key, +e.target.value); });
-$('resetThick').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_THICK) setThickness(key, 1); });
-$('resetSizes').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_SIZE) setPose(P[key], { scale: 100 }); syncMouldSizes(); poseChanged(); });
+$('itemName').addEventListener('change', e => {
+  const p = chosen(), v = e.target.value.trim(); if (!p) return;
+  if (!v || v === p.label) { e.target.value = p.label; return; }
+  checkpoint(); p.label = v; itemsChanged();
+});
+$('itemShow').addEventListener('change', e => { const p = chosen(); if (p) setShown(p.key, e.target.checked); });
+$('itOpacity').addEventListener('input', e => { const p = chosen(); if (!p) return; p.opacity = +e.target.value; $('itOpacityOut').textContent = `${Math.round(p.opacity * 100)}%`; applyAppearance(); save(); });
+$('itScale').addEventListener('input', e => { const p = chosen(); if (!p) return; checkpoint('scale' + p.key); setPose(p, { scale: +e.target.value }); poseChanged(); });
+// Thickness. A leather item's seam-reach target follows the moulds under it, if it was set to them.
+function setThickness(p, t) {
+  const follow = PIECES.filter(q => isLeather(q) && Math.abs(q.target - foamBelow(q)) < 0.01);
+  p.thick = t; applyStack();
+  for (const q of follow) q.target = Math.round(foamBelow(q) * 100) / 100;
+  renderItems(); syncItemBox(); dirty = colorsDirty = true; save();
+}
+$('itThickIn').addEventListener('input', e => { const p = chosen(); if (!p) return; checkpoint('thick' + p.key); setThickness(p, +e.target.value); });
+$('itThickMm').addEventListener('input', e => { const p = chosen(); if (!p) return; checkpoint('thick' + p.key); setThickness(p, +e.target.value * MM); });
+for (const [id, key, fmt] of [['itDrape', 'drape', v => `${v}°`], ['itEdgeR', 'edgeR', v => `${(+v).toFixed(2)}"`], ['itTarget', 'target', v => `${(+v).toFixed(2)}"`]])
+  $(id).addEventListener('input', e => { const p = chosen(); if (!p) return; checkpoint(key + p.key); p[key] = +e.target.value; $(id + 'Out').textContent = fmt(p[key]); dirty = true; save(); });
+// Up/down the stack.
+function moveItem(p, dir) {
+  const i = PIECES.indexOf(p), j = i + dir;
+  if (j < 0 || j >= PIECES.length) return;
+  checkpoint();
+  [PIECES[i], PIECES[j]] = [PIECES[j], PIECES[i]];
+  layoutChanged();
+}
+$('itemUp').addEventListener('click', () => { const p = chosen(); if (p) moveItem(p, 1); });
+$('itemDown').addEventListener('click', () => { const p = chosen(); if (p) moveItem(p, -1); });
+// After items are added, removed or reordered: restack, redo the flat prep and the lines, redraw the lists.
+function layoutChanged() {
+  applyStack();
+  for (const p of PIECES) updateFlat(p);
+  for (const h of state.hinges) updateHingeGeom(h);
+  itemsChanged();
+}
+function itemsChanged() {
+  renderItems(); syncItemBox(); renderNewFor(); renderMoveWhich(); syncMoveBox(); renderBendList();
+  $('bendFor').dataset.for = ''; syncBendBox();
+  applyAppearance(); colorsDirty = dirty = true; save();
+}
+function addPiece(p, at = PIECES.length) {
+  PIECES.splice(at, 0, p); P[p.key] = p;
+  state.show[p.key] ??= true; state.newFor[p.key] ??= false;
+  buildMesh(p);
+}
+function removePiece(p) {
+  const i = PIECES.indexOf(p); if (i < 0) return;
+  PIECES.splice(i, 1); delete P[p.key]; delete state.show[p.key]; delete state.newFor[p.key]; delete overlapRows[p.key];
+  disposePiece(p); dropColBuf(p.key);
+}
+$('itemDel').addEventListener('click', () => {
+  const p = chosen(); if (!p || PIECES.length <= 1) return;
+  checkpoint();
+  // its lines: drop it from shared lines, delete lines that bent only it
+  state.hinges = state.hinges.filter(h => { delete h.pieces[p.key]; return Object.values(h.pieces).some(Boolean); });
+  if (!selH()) state.selected = null;
+  removePiece(p);
+  if (!Object.values(state.newFor).some(Boolean)) state.newFor[PIECES.at(-1).key] = true;
+  state.item = PIECES.at(-1).key;
+  layoutChanged(); select(state.selected);
+});
+$('itemAdd').addEventListener('click', openImport);
+
 $('angle').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('angle' + h.id); guardedSet(h, 'angle', +e.target.value); syncBendBox(); dirty = true; save(); });
 $('twist').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('twist' + h.id); guardedSet(h, 'twist', +e.target.value); syncBendBox(); dirty = true; save(); });
 $('radius').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('radius' + h.id); guardedSet(h, 'radius', +e.target.value); syncBendBox(); dirty = true; save(); });
@@ -1326,33 +1567,18 @@ $('flatten').addEventListener('click', () => { checkpoint(); state.hinges.forEac
 $('reset').addEventListener('click', () => { if (!state.hinges.length) return; checkpoint(); state.hinges = []; select(null); dirty = true; save(); });
 
 $('noOverlap').addEventListener('change', e => { state.noOverlap = e.target.checked; guardNote = ''; scheduleOverlapCheck(); save(); });
-function bindRange(id, key, fmt, after) {
-  const el = $(id), out = $(id + 'Out');
-  el.value = state[key]; out.textContent = fmt(state[key]);
-  el.addEventListener('input', () => { if (!key.startsWith('opacity')) checkpoint('range' + key); state[key] = +el.value; out.textContent = fmt(state[key]); after && after(); dirty = true; save(); });
-}
-for (const k of ['opacity', 'opacityM1', 'opacityM2']) bindRange(k, k, v => `${Math.round(v * 100)}%`, applyAppearance);
-bindRange('scale', 'scale', v => `${v}%`, () => { updateFlat(P.chone); colorsDirty = true; drawFlat(); });
-bindRange('drape', 'drape', v => `${v}°`);
-bindRange('edgeR', 'edgeR', v => `${(+v).toFixed(2)}"`);
-bindRange('target', 'target', v => `${(+v).toFixed(2)}"`);
-for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mould2']]) {
-  const b = $(id);
-  b.addEventListener('click', () => {
-    state.show[key] = !state.show[key]; b.setAttribute('aria-pressed', String(state.show[key]));
-    const sel = selH();
-    if (sel && !lineVisible(sel)) select(null); else { renderBendList(); syncBendBox(); }
-    renderNewFor(); renderMoveWhich(); drawFlat();
-    applyAppearance(); save();
-  });
-}
 
 // ---------------------------------------------------------------- save / load (this browser only)
 const KEY = 'chone-fit-lab-v2';
 let booted = false;
+const geomSig = d => d.kind + '|' + (d.builtin || JSON.stringify(d.outline) + '|' + JSON.stringify(d.stitch || null));
+function itemSnap(p) {
+  return { key: p.key, label: p.label, kind: p.kind, ...(p.builtin ? { builtin: p.builtin } : { outline: p.outline, stitch: p.stitchSrc || undefined }), col: p.col,
+    thick: p.thick, opacity: p.opacity, show: !!state.show[p.key], pose: { ...p.pose },
+    ...(isLeather(p) ? { drape: p.drape, edgeR: p.edgeR, target: p.target } : {}) };
+}
 function snapshot() {
-  return { scale: state.scale, drape: state.drape, edgeR: state.edgeR, target: state.target, opacity: state.opacity, opacityM1: state.opacityM1, opacityM2: state.opacityM2, show: { ...state.show }, noOverlap: state.noOverlap,
-    newFor: { ...state.newFor }, thick: { mould1: P.mould1.thick, mould2: P.mould2.thick }, poses: Object.fromEntries(PIECES.map(p => [p.key, { ...p.pose }])),
+  return { version: 2, items: PIECES.map(itemSnap), item: state.item, noOverlap: state.noOverlap, newFor: { ...state.newFor },
     hinges: state.hinges.map(h => ({ name: h.name, a: h.a, b: h.b, angle: h.angle, twist: h.twist || 0, radius: h.radius, flip: h.flip, pieces: { ...h.pieces } })) };
 }
 function save() {
@@ -1361,37 +1587,73 @@ function save() {
 }
 const fin = v => typeof v === 'number' && Number.isFinite(v);
 const pt2 = v => Array.isArray(v) && v.length === 2 && v.every(fin);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// Configs from before items (version 1): the three fixed pieces with their settings spread over the top level.
+function migrate(s) {
+  if (Array.isArray(s.items)) return s;
+  const show = s.show || {}, poses = s.poses || {}, thick = s.thick || {}, pose = k => ({ x: 0, y: 0, rot: 0, ...(poses[k] || {}) });
+  return { ...s, item: 'chone', items: [
+    { key: 'mould2', builtin: 'mould2', thick: thick.mould2, opacity: s.opacityM2, show: show.mould2, pose: pose('mould2') },
+    { key: 'mould1', builtin: 'mould1', thick: thick.mould1, opacity: s.opacityM1, show: show.mould1, pose: pose('mould1') },
+    { key: 'chone', builtin: 'chone', opacity: s.opacity, show: show.chone, pose: { ...pose('chone'), scale: s.scale }, drape: s.drape, edgeR: s.edgeR, target: s.target },
+  ] };
+}
+const validRing = r => Array.isArray(r) && r.length >= 8 && r.every(pt2);
+function validDef(d) {
+  if (!d || typeof d.key !== 'string' || !/^[\w-]{1,40}$/.test(d.key)) return false;
+  return d.builtin ? !!(BUILTIN[d.builtin] && D[d.builtin]) : validRing(d.outline) && (!d.stitch || validRing(d.stitch));
+}
 // Put the whole lab into the state described by s (from this browser's storage or a config file). Missing fields fall back to defaults.
-function applyConfig(s) {
-  for (const k of ['scale', 'drape', 'edgeR', 'target', 'opacity', 'opacityM1', 'opacityM2']) if (fin(s[k])) state[k] = s[k];
-  Object.assign(state.show, { chone: true, mould1: true, mould2: true }, s.show || {});
+function applyConfig(s0) {
+  const s = migrate(s0 || {}), seen = new Set();
+  let defs = (Array.isArray(s.items) ? s.items : []).filter(d => validDef(d) && !seen.has(d.key) && seen.add(d.key));
+  if (!defs.length) defs = DEFAULT_ITEMS();
+  // keep the meshes of items that are still the same; rebuild the rest
+  const want = new Map(defs.map(d => [d.key, geomSig({ kind: d.kind || BUILTIN[d.builtin]?.kind || 'mould', ...d })]));
+  for (const p of [...PIECES]) if (want.get(p.key) !== p.sig) removePiece(p);
+  const order = [];
+  for (const d of defs) {
+    let p = P[d.key];
+    if (!p) {
+      try { p = createPiece(d); } catch (e) { console.error('[items] could not build', d.key, e); continue; }
+      p.sig = want.get(d.key); addPiece(p);
+    }
+    order.push(p);
+    if (typeof d.label === 'string' && d.label.trim()) p.label = d.label.trim().slice(0, 40);
+    if (typeof d.col === 'string' && d.col) p.col = d.col;
+    p.thick = fin(d.thick) && d.thick > 0 ? d.thick : KINDS[p.kind].thick;
+    p.opacity = fin(d.opacity) ? clamp(d.opacity, 0.15, 1) : KINDS[p.kind].opacity;
+    state.show[p.key] = d.show !== false;
+    const o = d.pose || {};
+    p.pose = { x: fin(o.x) ? o.x : 0, y: fin(o.y) ? o.y : 0, rot: fin(o.rot) ? o.rot : 0, scale: fin(o.scale) && o.scale > 0 ? o.scale : 100 };
+    p.drape = fin(d.drape) ? clamp(d.drape, 0, 160) : 0; p.edgeR = fin(d.edgeR) ? clamp(d.edgeR, 0, 1) : 0;
+    p.target = fin(d.target) ? d.target : null;
+  }
+  PIECES.splice(0, PIECES.length, ...order);
+  applyStack();
+  for (const p of PIECES) if (isLeather(p) && p.target === null) p.target = Math.round(foamBelow(p) * 100) / 100 || 2;
+  for (const p of PIECES) updateFlat(p);
   state.noOverlap = !!s.noOverlap; $('noOverlap').checked = state.noOverlap;
-  if (s.newFor && Object.values(s.newFor).some(Boolean)) state.newFor = { chone: false, mould1: false, mould2: false, ...s.newFor };
-  for (const k of ['mould1', 'mould2']) { const t = s.thick?.[k]; P[k].thick = fin(t) && t > 0 ? t : 1; }
-  for (const p of PIECES) {
-    const o = s.poses?.[p.key];
-    p.pose = o && [o.x, o.y, o.rot].every(fin) ? { x: o.x, y: o.y, rot: o.rot, ...(fin(o.scale) && p.key !== 'chone' ? { scale: o.scale } : {}) } : { x: 0, y: 0, rot: 0 };
-  }
-  for (const [id, key] of [['opacity', 'opacity'], ['opacityM1', 'opacityM1'], ['opacityM2', 'opacityM2'], ['scale', 'scale'], ['drape', 'drape'], ['edgeR', 'edgeR'], ['target', 'target']]) { $(id).value = state[key]; $(id).dispatchEvent(new Event('input')); }
-  for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mould2']]) $(id).setAttribute('aria-pressed', String(state.show[key]));
-  applyThickness();
-  for (const p of [P.mould2, P.mould1, P.chone]) updateFlat(p);
+  state.newFor = Object.fromEntries(PIECES.map(p => [p.key, !!s.newFor?.[p.key]]));
+  if (!Object.values(state.newFor).some(Boolean)) state.newFor[(P.chone || PIECES.at(-1)).key] = true;
+  state.item = P[s.item] ? s.item : (P.chone || PIECES.at(-1)).key;
   state.hinges = []; state.selected = null; hingeSeq = 0;
-  const hs = Array.isArray(s.hinges) ? s.hinges : []; // no starting lines
-  for (const h of hs) {
+  for (const h of Array.isArray(s.hinges) ? s.hinges : []) {
     if (!h || !pt2(h.a) || !pt2(h.b)) continue;
-    const pieces = h.pieces && PIECES.some(p => h.pieces[p.key]) ? { chone: !!h.pieces.chone, mould1: !!h.pieces.mould1, mould2: !!h.pieces.mould2 } : ALL();
-    addHinge({ name: String(h.name || nextBendName()), a: h.a, b: h.b, angle: fin(h.angle) ? h.angle : 0, twist: fin(h.twist) ? Math.max(-359, Math.min(359, h.twist)) : 0, radius: fin(h.radius) ? h.radius : 1.5, flip: !!h.flip, pieces });
+    const on = PIECES.filter(p => h.pieces?.[p.key]);
+    const pieces = on.length ? Object.fromEntries(on.map(p => [p.key, true])) : ALL();
+    addHinge({ name: String(h.name || nextBendName()), a: h.a, b: h.b, angle: fin(h.angle) ? h.angle : 0, twist: fin(h.twist) ? clamp(h.twist, -359, 359) : 0, radius: fin(h.radius) ? h.radius : 1.5, flip: !!h.flip, pieces });
   }
-  renderNewFor(); renderMoveWhich(); syncMoveBox(); syncMouldSizes(); syncThickness();
+  renderItems(); syncItemBox(); renderNewFor(); renderMoveWhich(); syncMoveBox();
+  $('bendFor').dataset.for = '';
   select(state.hinges.length > 1 ? state.hinges[1].id : state.hinges[0]?.id ?? null);
   applyAppearance();
   dirty = colorsDirty = true;
 }
 
 // Undo: before each change, a snapshot of the whole lab is pushed. Repeated input from one control
-// (a slider drag, typing) within a second counts as one step. View-only settings (Show, see-through,
-// "New lines bend") aren't part of undo, and undo leaves them as they are now.
+// (a slider drag, typing) within a second counts as one step. View-only settings (shown/hidden, see-through,
+// "New lines bend", the chosen item) aren't part of undo, and undo leaves them as they are now.
 const undoStack = [];
 let lastCk = { key: null, t: 0 }, restoring = false;
 function checkpoint(key = '') {
@@ -1411,8 +1673,9 @@ function syncUndo() {
 function undo() {
   const u = undoStack.pop(); if (!u) return;
   if (drag || fdrag) return void undoStack.push(u); // not in the middle of a drag
+  const view = Object.fromEntries(PIECES.map(p => [p.key, { show: !!state.show[p.key], opacity: p.opacity }]));
   restoring = true;
-  try { applyConfig({ ...u.cfg, show: { ...state.show }, opacity: state.opacity, opacityM1: state.opacityM1, opacityM2: state.opacityM2, newFor: { ...state.newFor }, noOverlap: state.noOverlap }); }
+  try { applyConfig({ ...u.cfg, items: u.cfg.items.map(d => view[d.key] ? { ...d, ...view[d.key] } : d), newFor: { ...state.newFor }, noOverlap: state.noOverlap, item: state.item }); }
   finally { restoring = false; }
   lastCk = { key: null, t: 0 };
   const h = state.hinges[u.sel];
@@ -1434,7 +1697,7 @@ const CFG_DIALOG = { id: 'chone-fit-config', types: [{ description: 'Chone Fit L
 let cfgHandle = null;
 const cfgStatus = (msg, bad) => { $('cfgStatus').textContent = msg; $('cfgStatus').classList.toggle('err', !!bad); };
 $('cfgSave').addEventListener('click', async () => {
-  const text = JSON.stringify({ app: 'chone-fit-lab', version: 1, savedAt: new Date().toISOString(), ...snapshot() }, null, 2);
+  const text = JSON.stringify({ app: 'chone-fit-lab', savedAt: new Date().toISOString(), ...snapshot() }, null, 2);
   const name = cfgHandle?.name || 'chone-fit-config.json';
   if (window.showSaveFilePicker) {
     try {
@@ -1461,13 +1724,249 @@ async function loadConfigFile(file) {
     const s = JSON.parse(await file.text());
     if (!s || typeof s !== 'object' || !Array.isArray(s.hinges)) throw new Error('not a Chone Fit Lab config (no bend lines)');
     checkpoint(); applyConfig(s); save();
-    cfgStatus(`Loaded ${file.name}${s.savedAt ? `, saved ${new Date(s.savedAt).toLocaleString()}` : ''}. ${state.hinges.length} bend lines.`);
+    cfgStatus(`Loaded ${file.name}${s.savedAt ? `, saved ${new Date(s.savedAt).toLocaleString()}` : ''}. ${PIECES.length} items, ${state.hinges.length} bend lines.`);
   } catch (err) { cfgStatus(`Couldn't load ${file.name}: ${err.message}`, true); }
 }
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.hinges)) return s; } catch (e) { }
   return null;
 }
+
+// ---------------------------------------------------------------- add an item from a DXF file
+// The DXF is read right here in the browser. Its closed outlines (SPLINE, LWPOLYLINE, POLYLINE, CIRCLE) are traced
+// into polylines in inches and drawn in the dialog; the one you click becomes the new item. A leather item can also
+// take a second, inner outline as its stitch line (that gives it a seam reach). The outline is resampled every 0.12"
+// and meshed by meshOutline(); it's stored in the config, so the item comes back on load.
+const DXF_INCH = { 0: 1, 1: 1, 2: 12, 4: MM, 5: 10 * MM, 6: 1000 * MM }; // $INSUNITS -> inches per drawing unit
+function nurbs(deg, knots, ctrl, wts, n) { // n points along a NURBS curve (de Boor, homogeneous coordinates)
+  const m = ctrl.length - 1, u0 = knots[deg], u1 = knots[m + 1], out = [];
+  for (let s = 0; s <= n; s++) {
+    const u = Math.min(u0 + (u1 - u0) * s / n, u1 - 1e-12);
+    let k = deg; while (k < m && knots[k + 1] <= u) k++;
+    const d = [];
+    for (let j = 0; j <= deg; j++) { const c = ctrl[j + k - deg], w = wts[j + k - deg]; d.push([c[0] * w, c[1] * w, w]); }
+    for (let r = 1; r <= deg; r++) for (let j = deg; j >= r; j--) {
+      const i = j + k - deg, den = knots[i + deg - r + 1] - knots[i], a = den ? (u - knots[i]) / den : 0;
+      d[j] = [d[j - 1][0] * (1 - a) + d[j][0] * a, d[j - 1][1] * (1 - a) + d[j][1] * a, d[j - 1][2] * (1 - a) + d[j][2] * a];
+    }
+    out.push([d[deg][0] / d[deg][2], d[deg][1] / d[deg][2]]);
+  }
+  return out;
+}
+function bulgeArc(a, b, bulge, out) { // points from a to b (exclusive) along an LWPOLYLINE bulge arc
+  if (!bulge) { out.push(a); return; }
+  const th = 4 * Math.atan(bulge), dx = b[0] - a[0], dy = b[1] - a[1], c = Math.hypot(dx, dy), r = c / (2 * Math.sin(th / 2));
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, h = r * Math.cos(th / 2), cx = mx - h * dy / c, cy = my + h * dx / c;
+  const a0 = Math.atan2(a[1] - cy, a[0] - cx), n = Math.max(4, Math.ceil(Math.abs(th) / (5 * DEG)));
+  for (let s = 0; s < n; s++) { const t = a0 + th * s / n; out.push([cx + Math.abs(r) * Math.cos(t), cy + Math.abs(r) * Math.sin(t)]); }
+}
+function parseDXF(text) {
+  const L = text.split(/\r\n|\r|\n/), G = [];
+  for (let i = 0; i + 1 < L.length; i += 2) G.push([parseInt(L[i], 10), L[i + 1].trim()]);
+  let unit = 1;
+  for (let i = 0; i + 1 < G.length; i++) if (G[i][0] === 9 && G[i][1] === '$INSUNITS') { unit = DXF_INCH[parseInt(G[i + 1][1], 10)] ?? 1; break; }
+  let i = G.findIndex((g, k) => g[0] === 2 && g[1] === 'ENTITIES' && G[k - 1]?.[1] === 'SECTION');
+  if (i < 0) throw new Error('no ENTITIES section (is it an ASCII DXF?)');
+  const curves = [], ents = [];
+  let cur = null;
+  for (i++; i < G.length; i++) {
+    const [c, v] = G[i];
+    if (c === 0) { if (cur) ents.push(cur); if (v === 'ENDSEC') { cur = null; break; } cur = { type: v, g: [] }; } else if (cur) cur.g.push([c, v]);
+  }
+  if (cur) ents.push(cur);
+  const num = (g, c) => { const x = g.find(p => p[0] === c); return x ? parseFloat(x[1]) : 0; };
+  const add = (pts, closed) => {
+    if (pts.length < 3) return;
+    pts = pts.map(([x, y]) => [x * unit, y * unit]);
+    const f = pts[0], l = pts.at(-1), span = Math.hypot(...pts.reduce((m, p) => [Math.max(m[0], Math.abs(p[0] - f[0])), Math.max(m[1], Math.abs(p[1] - f[1]))], [0, 0]));
+    if (Math.hypot(f[0] - l[0], f[1] - l[1]) < Math.max(1e-4, span * 1e-4)) { pts.pop(); closed = true; }
+    curves.push({ pts, closed });
+  };
+  let poly = null;
+  for (const e of ents) {
+    const g = e.g;
+    if (e.type === 'SPLINE') {
+      const flags = num(g, 70), deg = num(g, 71) || 3, knots = [], wts = [], ctrl = [], fit = [];
+      for (let k = 0; k < g.length; k++) {
+        const [c, v] = g[k];
+        if (c === 40) knots.push(parseFloat(v)); else if (c === 41) wts.push(parseFloat(v));
+        else if (c === 10) ctrl.push([parseFloat(v), 0]); else if (c === 20 && ctrl.length) ctrl.at(-1)[1] = parseFloat(v);
+        else if (c === 11) fit.push([parseFloat(v), 0]); else if (c === 21 && fit.length) fit.at(-1)[1] = parseFloat(v);
+      }
+      const w = wts.length === ctrl.length ? wts : ctrl.map(() => 1);
+      const pts = ctrl.length > deg && knots.length === ctrl.length + deg + 1 ? nurbs(deg, knots, ctrl, w, Math.max(64, ctrl.length * 12)) : ctrl.length ? ctrl : fit;
+      add(pts, !!(flags & 1));
+    } else if (e.type === 'LWPOLYLINE') {
+      const vs = [];
+      for (const [c, v] of g) { if (c === 10) vs.push({ p: [parseFloat(v), 0], b: 0 }); else if (c === 20 && vs.length) vs.at(-1).p[1] = parseFloat(v); else if (c === 42 && vs.length) vs.at(-1).b = parseFloat(v); }
+      const closed = !!(num(g, 70) & 1), pts = [];
+      for (let k = 0; k < vs.length; k++) { if (k === vs.length - 1 && !closed) { pts.push(vs[k].p); break; } bulgeArc(vs[k].p, vs[(k + 1) % vs.length].p, vs[k].b, pts); }
+      add(pts, closed);
+    } else if (e.type === 'POLYLINE') poly = { closed: !!(num(g, 70) & 1), vs: [] };
+    else if (e.type === 'VERTEX' && poly) poly.vs.push({ p: [num(g, 10), num(g, 20)], b: num(g, 42) });
+    else if (e.type === 'SEQEND' && poly) {
+      const pts = [], vs = poly.vs;
+      for (let k = 0; k < vs.length; k++) { if (k === vs.length - 1 && !poly.closed) { pts.push(vs[k].p); break; } bulgeArc(vs[k].p, vs[(k + 1) % vs.length].p, vs[k].b, pts); }
+      add(pts, poly.closed); poly = null;
+    } else if (e.type === 'CIRCLE') {
+      const cx = num(g, 10), cy = num(g, 20), r = num(g, 40), pts = [];
+      for (let k = 0; k < 72; k++) pts.push([cx + r * Math.cos(k * 5 * DEG), cy + r * Math.sin(k * 5 * DEG)]);
+      add(pts, true);
+    }
+  }
+  for (const c of curves) {
+    let a = 0, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let k = 0; k < c.pts.length; k++) { const [x, y] = c.pts[k], [u, v] = c.pts[(k + 1) % c.pts.length]; a += x * v - u * y; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    c.area = Math.abs(a / 2); c.box = [x0, y0, x1, y1];
+    c.pick = c.closed && c.area >= 0.5; // big enough to be a pattern piece (skips lettering and notches)
+  }
+  return curves;
+}
+// A closed polyline resampled every `step` inches along its length, counter-clockwise.
+function resampleRing(pts, step) {
+  const n = pts.length, seg = [];
+  let L = 0;
+  for (let k = 0; k < n; k++) { const a = pts[k], b = pts[(k + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]); seg.push(d); L += d; }
+  const m = Math.max(16, Math.round(L / step)), out = [];
+  let k = 0, acc = 0;
+  for (let s = 0; s < m; s++) {
+    const t = L * s / m;
+    while (acc + seg[k] < t && k < n - 1) { acc += seg[k]; k++; }
+    const a = pts[k], b = pts[(k + 1) % n], r = seg[k] ? (t - acc) / seg[k] : 0;
+    out.push([a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]);
+  }
+  let area = 0; for (let s = 0; s < m; s++) { const [x, y] = out[s], [u, v] = out[(s + 1) % m]; area += x * v - u * y; }
+  return area < 0 ? out.reverse() : out;
+}
+const imp = { curves: [], outline: -1, stitch: -1, what: 'outline', kind: 'mould', hover: -1, view: null, file: '' };
+function openImport() {
+  imp.what = 'outline'; imp.hover = -1;
+  $('impName').value = ''; renderImpChips(); impHelp();
+  $('impDlg').showModal(); sizeImp();
+}
+function impStatus(msg, bad) { $('impStatus').textContent = msg; $('impStatus').classList.toggle('err', !!bad); }
+function renderImpChips() {
+  const kinds = $('impKind'); kinds.textContent = '';
+  for (const [k, def] of Object.entries(KINDS)) {
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', String(imp.kind === k)); b.textContent = def.label;
+    b.addEventListener('click', () => { imp.kind = k; if (k !== 'leather') { imp.stitch = -1; imp.what = 'outline'; } renderImpChips(); impHelp(); drawImp(); });
+    kinds.appendChild(b);
+  }
+  const what = $('impWhat'); what.textContent = '';
+  for (const [k, label] of [['outline', 'Outline'], ['stitch', 'Stitch line']]) {
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', String(imp.what === k)); b.textContent = label;
+    b.addEventListener('click', () => { imp.what = k; renderImpChips(); impHelp(); });
+    what.appendChild(b);
+  }
+  $('impPickRow').hidden = imp.kind !== 'leather';
+}
+function impHelp() {
+  const o = imp.curves[imp.outline], st = imp.curves[imp.stitch];
+  let msg = !imp.curves.length ? '' : !o ? 'Click an outline to pick it.' : `Outline: ${(o.box[2] - o.box[0]).toFixed(2)}" × ${(o.box[3] - o.box[1]).toFixed(2)}".`;
+  if (o && imp.kind === 'leather') msg += st ? ' Stitch line picked.' : ' Optional: choose "Stitch line" and click the line inside it, for a seam reach.';
+  if (o) msg += ' It goes on top of the stack, centred on the Chone (or the chosen item). Move it in Flat pattern.';
+  $('impHelp').textContent = msg;
+  $('impAdd').disabled = !o;
+}
+function sizeImp() {
+  const c = $('impCanvas'), r = c.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+  const cs = imp.curves; imp.view = null;
+  if (cs.length) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k of cs) { x0 = Math.min(x0, k.box[0]); y0 = Math.min(y0, k.box[1]); x1 = Math.max(x1, k.box[2]); y1 = Math.max(y1, k.box[3]); }
+    const pad = 12, s = Math.min((r.width - 2 * pad) / (x1 - x0 || 1), (r.height - 2 * pad) / (y1 - y0 || 1));
+    imp.view = { s, ox: pad + ((r.width - 2 * pad) - (x1 - x0) * s) / 2 - x0 * s, oy: pad + ((r.height - 2 * pad) - (y1 - y0) * s) / 2 + y1 * s, dpr };
+  }
+  drawImp();
+}
+const impX = (x, v) => x * v.s + v.ox, impY = (y, v) => v.oy - y * v.s;
+function drawImp() {
+  const c = $('impCanvas'), g = c.getContext('2d'), v = imp.view;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height);
+  if (!v) return;
+  g.setTransform(v.dpr, 0, 0, v.dpr, 0, 0);
+  const path = k => { const p = imp.curves[k].pts; g.beginPath(); p.forEach(([x, y], i) => i ? g.lineTo(impX(x, v), impY(y, v)) : g.moveTo(impX(x, v), impY(y, v))); if (imp.curves[k].closed) g.closePath(); };
+  imp.curves.forEach((k, i) => { path(i); g.strokeStyle = css(k.pick ? '--fg' : '--grid'); g.globalAlpha = k.pick ? 0.55 : 0.8; g.lineWidth = 1; g.stroke(); });
+  g.globalAlpha = 1;
+  if (imp.hover >= 0) { path(imp.hover); g.strokeStyle = css('--accent'); g.lineWidth = 2; g.stroke(); }
+  if (imp.outline >= 0) { path(imp.outline); g.fillStyle = css('--accent-soft'); g.globalAlpha = 0.6; g.fill(); g.globalAlpha = 1; g.strokeStyle = css('--accent'); g.lineWidth = 3; g.stroke(); }
+  if (imp.stitch >= 0) { path(imp.stitch); g.setLineDash([5, 4]); g.strokeStyle = css('--ok'); g.lineWidth = 2.5; g.stroke(); g.setLineDash([]); }
+}
+function impNearest(ev) { // the pickable outline whose line is nearest the pointer (within 10 px)
+  const v = imp.view; if (!v) return -1;
+  const r = $('impCanvas').getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let best = -1, bd = 10;
+  imp.curves.forEach((k, i) => {
+    if (!k.pick) return;
+    const p = k.pts, n = p.length;
+    for (let j = 0; j < n; j++) {
+      const ax = impX(p[j][0], v), ay = impY(p[j][1], v), bx = impX(p[(j + 1) % n][0], v), by = impY(p[(j + 1) % n][1], v);
+      const ex = bx - ax, ey = by - ay; let t = ((mx - ax) * ex + (my - ay) * ey) / (ex * ex + ey * ey || 1); t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(mx - ax - ex * t, my - ay - ey * t); if (d < bd) { bd = d; best = i; }
+    }
+  });
+  return best;
+}
+const ringInside = (inner, outer) => { const f = Float64Array.from(outer.flat()); return inner.filter(([x, y]) => pointInRing(f, outer.length, x, y)).length >= inner.length * 0.95; };
+$('impCanvas').addEventListener('pointermove', ev => { const k = impNearest(ev); if (k !== imp.hover) { imp.hover = k; drawImp(); } });
+$('impCanvas').addEventListener('pointerleave', () => { imp.hover = -1; drawImp(); });
+$('impCanvas').addEventListener('click', ev => {
+  const k = impNearest(ev); if (k < 0) return;
+  if (imp.what === 'stitch' && imp.kind === 'leather') {
+    const o = imp.curves[imp.outline];
+    if (!o) return impStatus('Pick the outline first, then its stitch line.', true);
+    if (k === imp.outline || !ringInside(imp.curves[k].pts, o.pts)) return impStatus('The stitch line has to be a different outline that lies inside the picked one.', true);
+    imp.stitch = imp.stitch === k ? -1 : k;
+  } else {
+    imp.outline = k;
+    if (imp.stitch >= 0 && !ringInside(imp.curves[imp.stitch].pts, imp.curves[k].pts)) imp.stitch = -1;
+    if (!$('impName').value.trim()) $('impName').value = `Item ${PIECES.length + 1}`;
+  }
+  impStatus(`${imp.file}: ${imp.curves.filter(c => c.pick).length} outlines you can pick.`);
+  impHelp(); drawImp();
+});
+async function impLoadFile(file) {
+  try {
+    const curves = parseDXF(await file.text());
+    if (!curves.some(c => c.pick)) throw new Error('no closed outlines of a useful size');
+    Object.assign(imp, { curves, outline: -1, stitch: -1, what: 'outline', hover: -1, file: file.name });
+    impStatus(`${file.name}: ${curves.filter(c => c.pick).length} outlines you can pick.`);
+  } catch (e) { Object.assign(imp, { curves: [], outline: -1, stitch: -1 }); impStatus(`Couldn't read ${file.name}: ${e.message}`, true); }
+  renderImpChips(); impHelp(); sizeImp();
+}
+$('impPick').addEventListener('click', async () => {
+  if (window.showOpenFilePicker) {
+    try { const [fh] = await window.showOpenFilePicker({ id: 'chone-fit-dxf', multiple: false, types: [{ description: 'DXF pattern', accept: { 'application/dxf': ['.dxf'] } }] }); return impLoadFile(await fh.getFile()); }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  $('impFile').click();
+});
+$('impFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) impLoadFile(f); });
+$('impCancel').addEventListener('click', () => $('impDlg').close());
+new ResizeObserver(() => { if ($('impDlg').open) sizeImp(); }).observe($('impCanvas'));
+$('impAdd').addEventListener('click', () => {
+  const o = imp.curves[imp.outline]; if (!o) return;
+  const st = imp.kind === 'leather' ? imp.curves[imp.stitch] : null, mirror = $('impMirror').checked;
+  let ring = resampleRing(o.pts, 0.12), stitch = st ? resampleRing(st.pts, 0.1) : null;
+  // centre it on the Chone (or the chosen item), mirrored about its own centre if asked
+  let cx = 0, cy = 0; for (const [x, y] of ring) { cx += x; cy += y; } cx /= ring.length; cy /= ring.length;
+  const ref = P.chone || chosen(), [tx, ty] = ref ? centerOf(ref) : [-2.5, 7];
+  const map = ([x, y]) => [+((mirror ? cx - x : x - cx) + tx).toFixed(4), +(y - cy + ty).toFixed(4)];
+  ring = ring.map(map); stitch = stitch && stitch.map(map);
+  if (mirror) { ring.reverse(); stitch?.reverse(); } // mirroring flips the winding: back to counter-clockwise
+  let n = 0; for (const p of PIECES) { const m = /^item(\d+)$/.exec(p.key); if (m) n = Math.max(n, +m[1]); }
+  const def = { key: `item${n + 1}`, label: $('impName').value.trim().slice(0, 40) || `Item ${PIECES.length + 1}`, kind: imp.kind, outline: ring, stitch: stitch || undefined,
+    col: PALETTE[PIECES.filter(p => !p.builtin).length % PALETTE.length] };
+  checkpoint();
+  let p;
+  try { p = createPiece(def); } catch (e) { impStatus(`Couldn't build that outline: ${e.message}`, true); dropCheckpoint(undoStack.length); return; }
+  p.sig = geomSig(def); addPiece(p);
+  if (isLeather(p)) { applyStack(); p.target = Math.round(foamBelow(p) * 100) / 100 || 2; }
+  state.item = p.key;
+  layoutChanged();
+  $('impDlg').close(); setTab('items');
+});
 
 // ---------------------------------------------------------------- boot
 function resize() {
@@ -1482,8 +1981,8 @@ new ResizeObserver(sizeFlat).observe(flat);
 // (including values set from code, by watching the slider's value setter). A typed value is applied on Enter or when
 // the box loses focus; it is kept inside the slider's range but NOT rounded to the slider's step. The slider's
 // step is relaxed for that, and restored as soon as the slider itself is touched again.
-const NUM_UNITS = { opacity: ['%', 100], opacityM1: ['%', 100], opacityM2: ['%', 100], rot: ['°'], angle: ['°'], twist: ['°'], radius: ['"'], scale: ['%'], drape: ['°'], edgeR: ['"'],
-  m1scale: ['%'], m2scale: ['%'], m1thick: ['"'], m2thick: ['"'], target: ['"'] };
+const NUM_UNITS = { rot: ['°'], angle: ['°'], twist: ['°'], radius: ['"'],
+  itOpacity: ['%', 100], itScale: ['%'], itThickIn: ['"'], itThickMm: ['mm'], itDrape: ['°'], itEdgeR: ['"'], itTarget: ['"'] };
 const rangeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
 function addNumberBox(range) {
   const [unit, k = 1] = NUM_UNITS[range.id] || [''], out = $(range.id + 'Out');
@@ -1518,6 +2017,7 @@ document.querySelectorAll('.row > input[type=range]').forEach(addNumberBox);
 
 applyConfig(load() || {});
 setTool('draw');
+setTab((() => { try { return localStorage.getItem('chone-fit-lab-tab'); } catch (e) { return null; } })());
 setView('persp');
 resize();
 booted = true;
@@ -1531,5 +2031,5 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__lab = { state, P, refresh };
+window.__lab = { state, P, PIECES, refresh, snapshot };
 </script>

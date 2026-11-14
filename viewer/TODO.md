@@ -88,6 +88,41 @@ Requested 2026-11-14. Work through these one at a time. Tick each box when it's 
   - A checkbox under Bend lines. With it on, Bend angle, Rotate and Bend radius stop just before shown pieces would overlap.
   - Hidden pieces still block, with an alert: "You've bumped into hidden Mould 2." Where pieces already overlap, a change may not make it deeper.
 
+## Panel restructure (requested 2026-11-14)
+
+More items will be added later, so build this in a modular way. Each item is one self-describing piece: its type (leather or mould), outline, settings and lines. Adding a new item should not need new one-off code.
+
+- [ ] **B1. Three tabs: Items, Pattern & bends, Config** — built, waiting for your browser test
+  - Changed 2026-11-14: Flat Pattern and Bend Lines are one tab, so the pattern and the bend lines are visible together.
+  - Remove the separate **Chone** section (Size, Edge wrap, Edge rounding) and **Moulds** section (Size, Thickness). Their settings move into Items.
+  - The **Show** section folds into Items too.
+
+- [ ] **B2. Items tab** — built, waiting for your browser test
+  - Lists the items we have: currently Chone, Mould 1 and Mould 2.
+  - Add items and delete items.
+  - Clicking an item makes it the chosen item and shows its settings:
+    - Hidden or shown
+    - See-through (opacity)
+    - Size
+    - Thickness: default **1 mm** for the Chone and other leather parts, **1"** for moulds
+    - Leather parts only: Edge wrap, Edge rounding and Seam reach
+
+- [ ] **B3. Flat pattern (in Pattern & bends)**
+  - The same graph as today, showing only items that aren't hidden.
+  - Keeps **Draw lines** and **Move pieces**, but with no item picker. It works on whatever item is chosen in Items.
+
+- [ ] **B4. Bend lines (in Pattern & bends)**
+  - The same as today, but only shows bend lines for the item chosen in Items.
+
+- [ ] **B5. Config tab**
+  - The same as today: Save config / Load config.
+
+  - Decided: new items come from a DXF file (picked in the browser); leather has a real thickness in the stack and the overlap check; stacking is simple list order for now (revisit with seams).
+
+## Open questions for the restructure
+
+- Lines shared by several items (the "Bends" chips): keep them, or make each line belong to exactly one item? (B4)
+
 ## After each item
 
 - [ ] Update `docs/chone-fit-lab.md` to match.

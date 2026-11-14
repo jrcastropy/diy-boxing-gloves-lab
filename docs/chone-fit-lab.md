@@ -92,38 +92,64 @@ It's a script that sets a global, not a JSON file, so the page can load it with 
 
 ## Step 2: building the 3D model
 
-### The layer stack
+### Items and the layer stack
 
-| Layer | Height (z, inches) | Bends around (neutral height) |
+Every piece is an **item**: a flat outline meshed into triangles, of one **kind**:
+
+- **Mould:** a foam slab. Default thickness 1" (slider 0.25–3").
+- **Leather:** a thin slab. Default thickness 1 mm (slider 0.5–6 mm). It can wrap over the edge of the item under it (Edge wrap) and, if it has a stitch line, has a seam reach.
+
+Items stack in list order from the palm face up (z = 0 is the palm face, z goes up toward the back of the hand). Each sits on the one below it; a leather item sits 0.02" above the item under it, so the faces don't fight. `applyStack()` sets every item's z0, z1 and neutral height (its mid-thickness, which it bends around), and the top of the stack (`HTOP`). By default the stack is:
+
+| Layer | Height (z, inches) | Bends around |
 | --- | --- | --- |
 | Mould 2 | 0 to t₂ | t₂ / 2 |
 | Mould 1 | t₂ to t₂ + t₁ | t₂ + t₁ / 2 |
-| Chone | t₂ + t₁ + 0.04 (a thin sheet on top) | the same |
+| Chone | t₂ + t₁ + 0.02, 1 mm thick | its mid-thickness |
 
-t₁ and t₂ are the thicknesses of Mould 1 and Mould 2. Both default to 1", which gives the original heights: 0–1, 1–2 and 2.04. Each is set with its own slider in the **Moulds** panel (0.25–2" in 0.05" steps). `applyThickness()` recomputes every layer's heights and neutral height, and the Chone's height (`HTOP`). A slab's render vertices only record whether they're on the top or the bottom face, so changing the thickness never rebuilds the mesh. "Thickness back to 1\"" resets both.
+Every item is built from its flat mesh three times over: a top face, a bottom face (triangles reversed so it faces down), and a side wall made of one strip of quads around the edge points. Every render vertex keeps a link (`src`) back to its flat point, and only records whether it's on the top or the bottom face, so changing a thickness never rebuilds the mesh.
 
-z = 0 is the palm face of the foam, and z goes up toward the back of the hand.
+The code is modular: everything loops over the item list (`PIECES`), and the kinds are described once in `KINDS`. The Chone, Mould 1 and Mould 2 are built-in items (their meshes come from `glove-data.js`); added items carry their own outline.
 
-- **Moulds are solid slabs.** Each one is built from its flat mesh three times over: a top face, a bottom face (with its triangles reversed so it faces down), and a side wall made of one strip of quads around the edge points.
-- **The Chone is a single sheet.** Every render vertex keeps a link (`src`) back to its point on the flat mesh. The bending is worked out from flat positions, so all copies of a point move together.
+### The panel
 
-### Wrapping the Chone over the foam edge ("Edge wrap")
+Three tabs: **Items**, **Pattern & bends** (the flat pattern with the bend lines right under it, so you can see both at once) and **Config**. The last tab you used is remembered in this browser.
 
-Before any bending, leather that sticks out past Mould 1 is folded down over the foam edge. For each Chone point, the page precomputes:
+**Items** lists the items, top of the stack first, each with its colour, kind, thickness and a Shown/Hidden toggle. Clicking one chooses it (it's drawn heavier in the flat pattern, and the seam-reach box shows it if it has a stitch line) and shows its settings:
 
-- `e`: the distance to Mould 1's outline. It's positive outside the foam and negative inside.
+- **Name**, and whether it's **Shown**.
+- **See-through** (15–100%). Leather starts at 55%, moulds at 100%.
+- **Size** (50–150%), with its width and length in inches and cm. The Chone scales about its wrist edge, everything else about its own centre.
+- **Thickness**, in inches for a mould and mm for leather.
+- Where it sits in the stack, with **↑ Up the stack** / **↓ Down** to reorder it.
+- Leather only: **Edge wrap**, **Edge rounding** and the **Seam reach** target. A leather item without a stitch line says so.
+- **Delete item** (red). Lines that bent only that item are deleted; it's taken off shared lines. The last item can't be deleted. Undo brings it back.
+
+**Add item from DXF…** opens a dialog:
+
+1. **Choose DXF file…** reads the file in the browser. Closed SPLINE (any degree, rational or not, evaluated with de Boor's algorithm), LWPOLYLINE and POLYLINE (with bulge arcs) and CIRCLE outlines are traced into polylines and converted to inches from the file's `$INSUNITS`. Outlines smaller than 0.5 sq in (lettering, notches) are drawn faintly and can't be picked. The pattern file `Laces Boxing 14OZ (1).dxf` gives 19 pickable outlines.
+2. Click an outline to pick it. Pick its **Kind**. For leather you can also switch to **Stitch line** and click a second outline inside the first, which gives the item a seam reach.
+3. Optionally **Mirror it** (flip left–right), give it a **Name**, and **Add item**.
+
+The new item goes on top of the stack, centred on the Chone (or on the chosen item if there's no Chone), with the next colour from a fixed palette. Move it into place in Flat pattern. The outline is resampled every 0.12" (the stitch line every 0.1") and meshed like the Python exporter does: the outline points plus a 0.2" grid inside it, Delaunay-triangulated (the `delaunator` library, 5.0.1), keeping only triangles inside the outline. For the Chone's cut line this gives 412 outline points and 3,530 points in all, about the same as `glove-data.js`. The outline and stitch line are saved in the config, so the item comes back on load.
+
+### Wrapping leather over the edge of the item under it ("Edge wrap")
+
+Before any bending, leather that sticks out past the item under it (Mould 1, for the Chone) is folded down over that item's edge. For each leather point, the page precomputes:
+
+- `e`: the distance to that item's outline. It's positive outside the foam and negative inside.
 - `q`: the nearest point on that outline, and `n`, the direction pointing outward from it.
 
-Points inside the foam (`e ≤ 0`) stay flat at z = 2.04. Points outside wrap around a rounded corner of radius ρ ("Edge rounding"), then carry on in a straight line at the wrap angle ψ ("Edge wrap"):
+Points inside (`e ≤ 0`) stay flat in their stack slot. Points outside wrap around a rounded corner of radius ρ ("Edge rounding"), then carry on in a straight line at the wrap angle ψ ("Edge wrap"). This is the leather's bottom face, starting 0.02" off the edge (the same gap as above the top), with z₀ the bottom of its slot; the top face is the leather's thickness out from it, along the wrapped surface's normal:
 
 ```
 while e ≤ ρψ (on the rounded corner):
-    position = q + n·ρ·sin(e/ρ),     z = 2.04 − ρ + ρ·cos(e/ρ)
+    position = q + n·ρ·sin(e/ρ),     z = z₀ − ρ + ρ·cos(e/ρ)
 after that (straight part, t = e − ρψ):
-    position = q + n·(ρ·sin ψ + t·cos ψ),     z = 2.04 − ρ + ρ·cos ψ − t·sin ψ
+    position = q + n·(ρ·sin ψ + t·cos ψ),     z = z₀ − ρ + ρ·cos ψ − t·sin ψ
 ```
 
-Both sliders start at 0, so the Chone starts flat. At ψ = 90° the leather hangs straight down the side of the foam. The fold uses the flat distance, so the leather never stretches.
+Both sliders start at 0, so leather starts flat. They're in each leather item's settings in **Items**. At ψ = 90° the leather hangs straight down the side of the foam. The fold uses the flat distance, so the leather never stretches.
 
 ### Bend lines
 
@@ -154,7 +180,7 @@ Each bend is a cylinder bend: within the bend, points wrap around an axis parall
 
 ```
 center height  zc = −R            if θ > 0 (curl toward the palm)
-               zc = 2.04 + R      if θ < 0 (curl toward the back)
+               zc = HTOP + R      if θ < 0 (curl toward the back; HTOP = top of the stack, 2.06" by default)
 bend radius    r  = |layer's neutral height − zc|
 used length    s  = min(d, |θ|·r)        (the flat length it takes to go round the bend)
 turn angle     φ  = sign(θ)·s / r
@@ -163,11 +189,11 @@ turn angle     φ  = sign(θ)·s / r
 2. turn it by φ about the axis through (a, zc), pointing along z × n
 ```
 
-**Radius 0** puts a sharp crease on the crease face, a true right angle there at 90°. The other layers can't fold sharply, because the stack has thickness. Each one still goes round the crease, with a radius equal to its distance from it. Curling toward the palm, Mould 2 goes round at about 0.5", Mould 1 at 1.5" and the Chone at 2.04". So even at R = 0, the Chone's corner is rounded. If the crease is exactly on a layer (`r = 0`, the Chone when curling toward the back), that layer folds as a plain hinge: `s = 0` and `φ = θ`. This avoids dividing by zero.
+**Radius 0** puts a sharp crease on the crease face, a true right angle there at 90°. The other layers can't fold sharply, because the stack has thickness. Each one still goes round the crease, with a radius equal to its distance from it. Curling toward the palm, Mould 2 goes round at about 0.5", Mould 1 at 1.5" and the Chone at about 2.04". So even at R = 0, the Chone's corner is rounded. Curling toward the back, the crease is on the top of the stack, so the Chone (now 1 mm thick) goes round at half its thickness. If the crease were exactly on a layer's middle (`r = 0`), that layer folds as a plain hinge: `s = 0` and `φ = θ`. This avoids dividing by zero.
 
 Points still inside the bend (`d < |θ|·r`) end up on the curve. Points beyond it turn by the full θ as one solid piece.
 
-**Why each layer uses its own radius:** the radius `r` includes the layer's own neutral height. So for the same bend line and angle, the Chone (at 2.04) needs a longer stretch of flat material to go round the bend than Mould 1 (at 1.5) or Mould 2 (at 0.5). That difference is the 3D effect the flat comparison misses.
+**Why each layer uses its own radius:** the radius `r` includes the layer's own neutral height. So for the same bend line and angle, the Chone (at about 2.04) needs a longer stretch of flat material to go round the bend than Mould 1 (at 1.5) or Mould 2 (at 0.5). That difference is the 3D effect the flat comparison misses.
 
 The turn uses Rodrigues' rotation formula, written out by hand in `bendPoint()`.
 
@@ -207,22 +233,22 @@ With **Stop pieces overlapping** ticked (under Bend lines), the Bend angle, Rota
 
 ### Seam reach
 
-This is the number the page is built for. For each point on the Chone stitch line:
+This is the number the page is built for. It's worked out for every leather item that has a stitch line (the Chone, or an added leather item given one), against the item under it. For each point on the stitch line:
 
 - **Finding it on the bent Chone:** it is located in a Chone triangle on the flat pattern (a 0.5" grid makes the search fast). Its bent position is then worked out from that triangle's bent corners, and it is lifted 0.03" off the surface so it draws on top.
-- **Measuring:** the script takes the nearest edge point of Mould 1 (from the flat pattern), at both its top and its bottom on the bent model. That gives the direction down the foam side. The reach is how far the stitch point lies along that direction, starting from the top of Mould 1:
+- **Measuring:** the script takes the nearest edge point of the item under it (Mould 1, for the Chone), from the flat pattern, at both its top and its bottom on the bent model. That gives the direction down the foam side. The reach is how far the stitch point lies along that direction, starting from the top of that item:
 
   ```
   reach = (S − T) · normalize(B − T)
   ```
 
   S is the stitch point, T the top of the foam edge, B the bottom of Mould 1's edge. Past 1" the line continues in the same direction, approximately down Mould 2's side.
-- **Colour:** green if it reaches the target (2" by default, the full foam stack). If the target equals the full stack when you change a mould's thickness, the target follows the new total. A target you've set to something else stays as it is, amber if within 0.5" of it, red if shorter. The wrist edge is shown grey and left out, because it's sewn to the cuff.
-- **Badge:** shows the shortest reach, roughly where it is (fingertips, knuckle side, thumb, index-finger side, wrist), and the percentage of the seam that reaches the target.
+- **Colour:** green if it reaches the target (by default the moulds under that leather, 2" for the Chone). If the target equals the moulds under it when you change a thickness, the target follows the new total. A target you've set to something else stays as it is, amber if within 0.5" of it, red if shorter. The wrist edge is shown grey and left out, because it's sewn to the cuff.
+- **Badge:** over the 3D view, for the chosen item if it has a seam reach, otherwise the first shown one that does. It shows the shortest reach, roughly where it is (fingertips, knuckle side, thumb, index-finger side, wrist), and the percentage of the seam that reaches the target.
 
 ### Chone size
 
-The size slider scales the Chone's flat points and stitch line about the origin (the middle of the wrist edge). This is the same pivot `scale_chone.py` uses, so the sizes match the 105–120% DXFs. Changing it re-runs the Chone setup: the edge-wrap distances, the triangle lookup grid, the stitch-point positions and the moving part of every bend line that bends the Chone.
+The Chone's **Size** (in Items) scales its flat points and stitch line about the origin (the middle of the wrist edge). This is the same pivot `scale_chone.py` uses, so the sizes match the 105–120% DXFs. Changing it re-runs the Chone setup: the edge-wrap distances, the triangle lookup grid, the stitch-point positions and the moving part of every bend line that bends the Chone.
 
 ### Placing the pieces
 
@@ -231,18 +257,18 @@ The exporter's fit (Step 1) is only a starting position. In the panel, each piec
 ```
 placed = R(rot) · (point − c) · s + pivot + (x, y)
 pivot  = c · s   for the Chone (so it scales about the wrist-edge origin, like scale_chone.py)
-pivot  = c       for a mould   (so it scales about its own centre and stays put under the Chone)
+pivot  = c       for every other item (so it scales about its own centre and stays put)
 ```
 
-The Chone's s comes from the Chone Size slider. Each mould's s comes from its own slider in the **Moulds** section (75–125% in 0.5% steps). Each slider shows the mould's width and length in inches and cm. **Moulds back to 100%** resets both sizes and leaves positions alone. "Reset all positions" leaves sizes alone.
+Each item's s comes from its **Size** slider in Items (50–150% in 0.5% steps), which shows its width and length in inches and cm. "Reset all positions" leaves sizes alone.
 
-All three pieces start at 100%, offset 0 and rotation 0, which is the auto-fit position. Scaling or moving a piece re-runs everything that depends on where it is:
+Every item starts at 100%, offset 0 and rotation 0 (the auto-fit position for the built-in three). Scaling or moving a piece re-runs everything that depends on where it is:
 
 - its triangle lookup grid and texture coordinates
 - the moving part of every line that bends it
-- the Chone setup (edge wrap and seam-reach lookups), if the piece is the Chone or Mould 1
+- the leather setup (edge wrap and seam-reach lookups) of the piece, if it's leather, and of a leather item sitting on it
 
-Lines given only the moved piece move, turn and scale with it, so they stay in the same place on that piece. (Lines on the Chone don't follow the Chone Size slider, which was already the behaviour before.) Lines shared with other pieces stay where they are. While you drag, the move is applied at most once per animation frame.
+Lines given only the moved piece move, turn and scale with it, so they stay in the same place on that piece. (Lines on an item move with it when you move or turn it, and scale with its Size slider.) Lines shared with other pieces stay where they are. While you drag, the move is applied at most once per animation frame.
 
 ### Interaction
 
@@ -253,13 +279,13 @@ Lines given only the moved piece move, turn and scale with it, so they stay in t
   - **Draw lines:** pick which pieces new lines bend, using the "New lines bend" chips. Dragging draws a new line. Tapping picks the bend that moves that spot, checking the pieces picked for new lines first. Dragging an end dot moves the selected line. The part the selected bend moves is shaded in each piece's colour.
   - **Move pieces:** pick a piece with the "Moving" chips. Only that piece moves. Clicking near another piece's outline doesn't switch to it. Dragging moves it. Shift-drag, or the Rotation slider (±45°), turns it about its centre, which is marked +. "Reset this piece" and "Reset all positions" put pieces back at the auto-fit position.
 - **Selected line's pieces:** the "Bends" chips in the line's box choose which pieces it bends. The last chip can't be switched off.
-- **Saving:** bend lines (with their pieces), piece positions, the "New lines bend" choice and slider settings are saved in the browser (`localStorage`, key `chone-fit-lab-v2`; the key was changed from `v1` when the defaults changed, so old saved settings are ignored), and only after the page has finished loading. If storage isn't available, the page still works and just doesn't remember anything.
-- **Show:** hiding a piece hides it in 3D and in the flat pattern panel (its outline, and the stitch line for the Chone). It also hides its bend lines in 3D, in the flat panel and in the bend list, and they can't be picked by tapping. A line shared with a piece that's still shown stays visible and is drawn on that piece. If the selected line gets hidden, nothing is selected. The bend count says how many lines are hidden. A hidden piece is also greyed out and can't be clicked in every piece picker. In **New lines bend**, new lines go only on pieces that are picked and shown. If all the picked pieces are hidden, drawing in the flat panel does nothing, **Draw on 3D** is switched off, and a note says why. In a line's **Bends**, you can't add a hidden piece to the line or take it off. In **Moving**, a hidden piece can't be moved. If the piece being moved gets hidden, the first shown piece is picked instead.
-- **Bend list:** lines are grouped under Chone, Mould 1, Mould 2 and Shared (lines that bend more than one piece, shown with a colour dot for each of their pieces). Each group is sorted by name in number order (Bend 2 before Bend 10). New lines are named one more than the highest "Bend N" already there, so names never repeat. (They used to come from a counter that reset on load, which made duplicates.)
-- **Undo:** the **↶ Undo** button at the top of the 3D view, or ⌘Z / Ctrl+Z, steps back through changes. These are: adding, deleting, flipping or flattening lines; dragging a line's ends; bending in 3D; changing a line's pieces, angle or radius; moving, turning, resizing or thickening pieces; the Chone size, edge-wrap and target sliders; "Reset…" buttons; and loading a config. Before each change, the page pushes a full snapshot (up to 100). Continuous input from one control within a second, like dragging a slider, is one step. A click that doesn't actually change anything doesn't add a step. Undo leaves the view settings as they are now: Show, see-through and "New lines bend". The undo history lives only in the open page and is cleared when it reloads.
-- **See-through:** under Show, each piece has its own see-through slider (15–100%): the Chone starts at 55%, the moulds at 100% (solid). They're view settings: saved with the config, but undo leaves them as they are.
-- **Number boxes:** every slider in the panel has a box beside it for typing an exact value, with its unit (°, ", %; see-through is in %). The box and the slider follow each other both ways. A typed value applies when you press Enter or click away, and Esc cancels. It's kept inside the slider's range, but it isn't rounded to the slider's step. A 1.37" thickness stays 1.37" instead of becoming 1.35". To allow that, the slider accepts any value until you drag or key it again. The piece Rotation slider now goes from −180° to +180° (it was ±45°), to match what Shift-drag can do.
-- **Config files:** **Save config…** writes everything as JSON: the bend lines and their pieces, piece positions, mould sizes and thicknesses, the "New lines bend" choice, and all sliders. Configs belong in `viewer/config/`, which is git-ignored so they stay on your machine. A web page can't open a dialog at a fixed path, so in Chrome and Edge both the save and the open dialog use one remembered-folder id (`chone-fit-config`). You browse to `viewer/config/` the first time, and after that both dialogs open there by themselves, even after a reload. The folder is remembered for each origin, such as `localhost:8000`. Where those dialogs aren't available (Safari, Firefox, some embedded pages), Save downloads `chone-fit-config.json` for you to move into `viewer/config/`, and Load uses a plain file picker. **Load config…** reads a file back. The page checks it first: bad lines are skipped, and missing fields get their defaults. The browser's own saved copy and config files go through the same `applyConfig()`, so they behave the same. A page can't write into a folder without asking you first, which is why there's a dialog.
+- **Saving:** the items (with added items' outlines), their settings, bend lines (with their pieces), positions, the chosen item and the "New lines bend" choice are saved in the browser (`localStorage`, key `chone-fit-lab-v2`), and only after the page has finished loading. Settings saved before items existed are converted when they're loaded. If storage isn't available, the page still works and just doesn't remember anything.
+- **Shown / Hidden** (in Items): hiding a piece hides it in 3D and in the flat pattern panel (its outline, and its stitch line). It also hides its bend lines in 3D, in the flat panel and in the bend list, and they can't be picked by tapping. A line shared with a piece that's still shown stays visible and is drawn on that piece. If the selected line gets hidden, nothing is selected. The bend count says how many lines are hidden. A hidden piece is also greyed out and can't be clicked in every piece picker. In **New lines bend**, new lines go only on pieces that are picked and shown. If all the picked pieces are hidden, drawing in the flat panel does nothing, **Draw on 3D** is switched off, and a note says why. In a line's **Bends**, you can't add a hidden piece to the line or take it off. In **Moving**, a hidden piece can't be moved. If the piece being moved gets hidden, the first shown piece is picked instead.
+- **Bend list:** lines are grouped under each item (top of the stack first) and Shared (lines that bend more than one piece, shown with a colour dot for each of their pieces). Each group is sorted by name in number order (Bend 2 before Bend 10). New lines are named one more than the highest "Bend N" already there, so names never repeat. (They used to come from a counter that reset on load, which made duplicates.)
+- **Undo:** the **↶ Undo** button at the top of the 3D view, or ⌘Z / Ctrl+Z, steps back through changes. These are: adding, deleting, flipping or flattening lines; dragging a line's ends; bending in 3D; changing a line's pieces, angle or radius; moving, turning, resizing, thickening, renaming, reordering, adding or deleting items; the edge-wrap and target sliders; "Reset…" buttons; and loading a config. Before each change, the page pushes a full snapshot (up to 100). Continuous input from one control within a second, like dragging a slider, is one step. A click that doesn't actually change anything doesn't add a step. Undo leaves the view settings as they are now: shown/hidden, see-through, the chosen item and "New lines bend". The undo history lives only in the open page and is cleared when it reloads.
+- **See-through:** each item has its own see-through slider in Items (15–100%): leather starts at 55%, moulds at 100% (solid). It's a view setting: saved with the config, but undo leaves it as it is.
+- **Number boxes:** every slider in the panel has a box beside it for typing an exact value, with its unit (°, ", mm, %; see-through is in %). The box and the slider follow each other both ways. A typed value applies when you press Enter or click away, and Esc cancels. It's kept inside the slider's range, but it isn't rounded to the slider's step. A 1.37" thickness stays 1.37" instead of becoming 1.35". To allow that, the slider accepts any value until you drag or key it again. The piece Rotation slider now goes from −180° to +180° (it was ±45°), to match what Shift-drag can do.
+- **Config files:** **Save config…** writes everything as JSON (version 2): the items (added ones with their outlines) and their settings, the bend lines and their pieces, the "New lines bend" choice and the chosen item. Version 1 configs (before items) still load. Configs belong in `viewer/config/`, which is git-ignored so they stay on your machine. A web page can't open a dialog at a fixed path, so in Chrome and Edge both the save and the open dialog use one remembered-folder id (`chone-fit-config`). You browse to `viewer/config/` the first time, and after that both dialogs open there by themselves, even after a reload. The folder is remembered for each origin, such as `localhost:8000`. Where those dialogs aren't available (Safari, Firefox, some embedded pages), Save downloads `chone-fit-config.json` for you to move into `viewer/config/`, and Load uses a plain file picker. **Load config…** reads a file back. The page checks it first: bad lines are skipped, and missing fields get their defaults. The browser's own saved copy and config files go through the same `applyConfig()`, so they behave the same. A page can't write into a folder without asking you first, which is why there's a dialog.
 - **Redrawing:** changes mark the model as out of date, and the next animation frame recomputes everything. The amount of work is small: about 13,000 vertices times a few bend lines.
 
 ### Starting state
@@ -282,7 +308,8 @@ There are no starting lines: the pieces start flat. A new line also starts flat 
 - **The moulds start at the even-gap fit.** If the foam actually sits differently under the Chone, move it with the Move pieces tool.
 - **Bending pieces separately can make them pass through each other** unless **Stop pieces overlapping** is ticked, and even then only the bend controls are stopped (see above).
 - **Layers slide at the far bends.** After a nearer bend, each layer's later bend lines sit at different places, so curls at the fingertips cross a little.
-- **Not included:** the Chone Cuff, the Cuff Mould and the Front Palm.
+- **Not included as built-in items:** the Chone Cuff, the Cuff Mould and the Front Palm. Add them from the DXF with **Add item from DXF…**.
+- **Stacking is simple.** Each item sits flat on the one below it across its whole outline, even where they don't overlap on the flat pattern.
 - **Untested in a browser here.** It was published after only a syntax check, because the headless-browser screenshot was blocked in this setup.
 
 ## Files
@@ -291,6 +318,6 @@ There are no starting lines: the pieces start flat. A new line also starts flat 
 | --- | --- |
 | `scripts/export_3d.py` | DXF to `viewer/glove-data.js`: fits the moulds and builds the meshes |
 | `viewer/glove-data.js` | Generated mesh data (about 370 KB) |
-| `viewer/chone-fit-lab.html` | The viewer: one HTML page with all the code inside it |
+| `viewer/chone-fit-lab.html` | The viewer: one HTML page with all the code inside it, including the DXF reader for added items |
 | `scripts/chone_mould_relation.py` | The flat 2D comparison this builds on (`renders/chone-mould-relation.png`) |
 | `scripts/render_pieces.py`, `scripts/join_chone_cuff.py` | Shared helpers `poly()` and `horizontal_edge()` used by the exporter |
