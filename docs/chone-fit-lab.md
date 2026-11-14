@@ -130,7 +130,7 @@ Both sliders start at 0, so the Chone starts flat. At ψ = 90° the leather hang
 A bend line is a segment `a → b` on the flat pattern, plus:
 
 - an **angle** θ (positive curls toward the palm)
-- a **radius** R, measured at the palm face of the foam
+- a **radius** R (0–5"), measured at the crease face of the stack: the palm face of the foam when curling toward the palm, or the Chone when curling toward the back
 - a **flip** flag that chooses which side moves
 - a **rotate** angle τ (−359° to +359°), which rolls the moving part about its own length before it's bent
 - **pieces**: which of Chone, Mould 1 and Mould 2 it bends. At least one.
@@ -162,6 +162,8 @@ turn angle     φ  = sign(θ)·s / r
 1. move the point back toward the line by s   (p −= s·n)
 2. turn it by φ about the axis through (a, zc), pointing along z × n
 ```
+
+**Radius 0** puts a sharp crease on the crease face, a true right angle there at 90°. The other layers can't fold sharply, because the stack has thickness. Each one still goes round the crease, with a radius equal to its distance from it. Curling toward the palm, Mould 2 goes round at about 0.5", Mould 1 at 1.5" and the Chone at 2.04". So even at R = 0, the Chone's corner is rounded. If the crease is exactly on a layer (`r = 0`, the Chone when curling toward the back), that layer folds as a plain hinge: `s = 0` and `φ = θ`. This avoids dividing by zero.
 
 Points still inside the bend (`d < |θ|·r`) end up on the curve. Points beyond it turn by the full θ as one solid piece.
 
