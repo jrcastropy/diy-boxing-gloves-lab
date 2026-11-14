@@ -38,3 +38,6 @@ node_modules/
 .claude/
 CLAUDE.local.md
 settings.local.json
+
+# Config
+viewer/config

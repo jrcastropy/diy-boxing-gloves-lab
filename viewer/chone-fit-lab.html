@@ -62,6 +62,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
 .chip[aria-pressed="false"] { opacity: .45; }
+.chip:disabled { opacity: .25; cursor: not-allowed; }
+.chip:disabled .sw { filter: grayscale(1); }
 .chip[aria-pressed="true"].sel { border-color: var(--accent); background: var(--accent-soft); }
 .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .btn { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 6px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
@@ -141,6 +143,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <button class="btn" id="toolMove">Move pieces</button>
       </div>
       <div id="drawOpts" class="pickrow"><span>New lines bend</span><div class="layers" id="newFor"></div></div>
+      <p class="note err" id="drawWarn" hidden>The pieces picked for new lines are all hidden. Show one in <b>Show</b>, or pick a shown piece, to draw lines.</p>
       <div id="moveOpts" class="stack" hidden>
         <div class="pickrow"><span>Moving</span><div class="layers" id="moveWhich"></div></div>
         <div class="row"><label for="rot">Rotation</label><input id="rot" type="range" min="-45" max="45" step="0.5" value="0"><output id="rotOut"></output></div>
@@ -207,7 +210,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <button class="btn" id="cfgLoad">Load config…</button>
         <input type="file" id="cfgFile" accept=".json,application/json" hidden>
       </div>
-      <p class="note" id="cfgStatus">Saves everything (bend lines, piece positions, sizes, thicknesses, sliders) as a JSON file. Save it into the <b>viewer</b> folder to keep it with the project, then load it in another browser, machine or session.</p>
+      <p class="note" id="cfgStatus">Saves everything (bend lines, piece positions, sizes, thicknesses, sliders) as a JSON file. Keep configs in <b>viewer/config</b>: the first time, browse there in the dialog, and after that Save and Load open there by themselves (Chrome and Edge).</p>
     </section>
     <p class="note err" id="err" hidden></p>
   </aside>
@@ -732,9 +735,9 @@ canvas.addEventListener('pointerdown', ev => {
     const f = [hit.uv.x, hit.uv.y];
     if (!drawFirst) { drawFirst = f; pickMarker.position.copy(hit.point); pickMarker.visible = true; }
     else {
-      if (Math.hypot(f[0] - drawFirst[0], f[1] - drawFirst[1]) > 0.5) {
+      if (canDraw() && Math.hypot(f[0] - drawFirst[0], f[1] - drawFirst[1]) > 0.5) {
         checkpoint();
-        const h = addHinge({ name: nextBendName(), a: drawFirst, b: f, angle: 30, radius: 1.5, flip: false, pieces: { ...state.newFor } });
+        const h = addHinge({ name: nextBendName(), a: drawFirst, b: f, angle: 30, radius: 1.5, flip: false, pieces: newTargets() });
         select(h.id); save();
       }
       drawFirst = null; pickMarker.visible = false; setDrawMode(false);
@@ -846,7 +849,7 @@ function drawFlat() {
     fctx.moveTo(X - 6, Y); fctx.lineTo(X + 6, Y); fctx.moveTo(X, Y - 6); fctx.lineTo(X, Y + 6); fctx.stroke();
   }
   if (flatDraft) {
-    const ps = PIECES.filter(p => state.newFor[p.key]);
+    const nt = newTargets(), ps = PIECES.filter(p => nt[p.key]);
     fctx.strokeStyle = ps.length === 1 ? css('--' + ps[0].col) : css('--fg'); fctx.setLineDash([5, 4]); fctx.lineWidth = 2; fctx.beginPath();
     fctx.moveTo(fx(flatDraft.a[0]), fy(flatDraft.a[1])); fctx.lineTo(fx(flatDraft.b[0]), fy(flatDraft.b[1])); fctx.stroke(); fctx.setLineDash([]);
   }
@@ -865,6 +868,7 @@ flat.addEventListener('pointerdown', ev => {
   const p = flatPt(ev);
   flat.setPointerCapture(ev.pointerId);
   if (state.tool === 'move') {
+    if (!state.show[state.moving]) return; // nothing shown to move
     const m = P[state.moving], c = centerOf(m);
     checkpoint();
     fdrag = { mode: ev.shiftKey || ev.altKey ? 'rotate' : 'move', start: p, pose: { ...m.pose }, a0: Math.atan2(p[1] - c[1], p[0] - c[0]), ck: undoStack.length };
@@ -893,7 +897,7 @@ flat.addEventListener('pointermove', ev => {
   }
   if (fdrag.mode === 'end') { fdrag.h[fdrag.end] = p; updateHingeGeom(fdrag.h); dirty = true; colorsDirty = true; drawFlat(); return; }
   if (Math.hypot(p[0] - fdrag.start[0], p[1] - fdrag.start[1]) * fs > 8) fdrag.moved = true;
-  if (fdrag.moved) { flatDraft = { a: fdrag.start, b: p }; drawFlat(); }
+  if (fdrag.moved && canDraw()) { flatDraft = { a: fdrag.start, b: p }; drawFlat(); }
 });
 flat.addEventListener('pointerup', ev => {
   if (!fdrag) return;
@@ -901,9 +905,10 @@ flat.addEventListener('pointerup', ev => {
   if (d.mode === 'move' || d.mode === 'rotate') { if (!d.changed) dropCheckpoint(d.ck); flushPose(); flat.style.cursor = 'grab'; save(); return; }
   if (d.mode === 'end') { if (!d.changed) dropCheckpoint(d.ck); save(); renderBendList(); return; }
   flatDraft = null;
+  if (d.moved && !canDraw()) { drawFlat(); return; } // every picked piece is hidden: no line
   if (d.moved && Math.hypot(p[0] - d.start[0], p[1] - d.start[1]) > 0.5) {
     checkpoint();
-    const h = addHinge({ name: nextBendName(), a: d.start, b: p, angle: 30, radius: 1.5, flip: false, pieces: { ...state.newFor } });
+    const h = addHinge({ name: nextBendName(), a: d.start, b: p, angle: 30, radius: 1.5, flip: false, pieces: newTargets() });
     select(h.id); save();
   } else { // tap: pick the bend that moves this spot, looking first at the pieces new lines go on
     const pieces = [...PIECES].sort((x, y) => (state.newFor[y.key] ? 1 : 0) - (state.newFor[x.key] ? 1 : 0));
@@ -922,11 +927,12 @@ flat.addEventListener('pointerup', ev => {
 function select(id) { state.selected = id; colorsDirty = true; dirty = true; syncBendBox(); renderBendList(); drawFlat(); }
 function swatch(p) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = `var(--${p.col})`; s.title = p.label; return s; }
 // A row of Chone / Mould 1 / Mould 2 chips.
-function pieceChips(box, isOn, onClick) {
+function pieceChips(box, isOn, onClick, isDisabled = () => false) {
   box.textContent = '';
   for (const p of PIECES) {
     const b = document.createElement('button');
     b.className = 'chip'; b.setAttribute('aria-pressed', String(isOn(p)));
+    if (isDisabled(p)) { b.disabled = true; b.title = `${p.label} is hidden. Show it to use it here.`; }
     b.append(swatch(p), p.label);
     b.addEventListener('click', () => onClick(p));
     box.appendChild(b);
@@ -974,14 +980,15 @@ function syncBendBox() {
   $('radius').value = h.radius; $('radiusOut').textContent = `${(+h.radius).toFixed(2)}"`;
   const chip = $('bendList').querySelector(`[data-id="${h.id}"] .t`);
   if (chip) chip.textContent = `${h.name} · ${h.angle}°`;
-  if ($('bendFor').dataset.for !== String(h.id) + JSON.stringify(h.pieces)) {
-    $('bendFor').dataset.for = String(h.id) + JSON.stringify(h.pieces);
+  const forKey = String(h.id) + JSON.stringify(h.pieces) + JSON.stringify(state.show);
+  if ($('bendFor').dataset.for !== forKey) {
+    $('bendFor').dataset.for = forKey;
     pieceChips($('bendFor'), p => h.pieces[p.key], p => {
       const n = { ...h.pieces, [p.key]: !h.pieces[p.key] };
       if (!Object.values(n).some(Boolean)) return; // a line has to bend something
       checkpoint(); h.pieces = n; updateHingeGeom(h);
       colorsDirty = dirty = true; renderBendList(); syncBendBox(); drawFlat(); save();
-    });
+    }, p => !state.show[p.key]);
   }
 }
 function selH() { return state.hinges.find(x => x.id === state.selected); }
@@ -1002,15 +1009,25 @@ function setTool(t) {
 }
 $('toolDraw').addEventListener('click', () => setTool('draw'));
 $('toolMove').addEventListener('click', () => setTool('move'));
+// New lines go only on pieces that are picked AND shown.
+function newTargets() { return Object.fromEntries(PIECES.map(p => [p.key, !!(state.newFor[p.key] && state.show[p.key])])); }
+function canDraw() { return Object.values(newTargets()).some(Boolean); }
 function renderNewFor() {
   pieceChips($('newFor'), p => state.newFor[p.key], p => {
     const n = { ...state.newFor, [p.key]: !state.newFor[p.key] };
     if (!Object.values(n).some(Boolean)) return;
     state.newFor = n; renderNewFor(); save();
-  });
+  }, p => !state.show[p.key]);
+  const ok = canDraw();
+  $('drawWarn').hidden = ok;
+  $('draw3d').disabled = !ok;
+  if (!ok && drawMode) setDrawMode(false);
 }
 function setMoving(k) { state.moving = k; renderMoveWhich(); syncMoveBox(); drawFlat(); }
-function renderMoveWhich() { pieceChips($('moveWhich'), p => state.moving === p.key, p => setMoving(p.key)); }
+function renderMoveWhich() {
+  if (!state.show[state.moving]) { const v = PIECES.find(p => state.show[p.key]); if (v) { state.moving = v.key; syncMoveBox(); } }
+  pieceChips($('moveWhich'), p => state.moving === p.key, p => setMoving(p.key), p => !state.show[p.key]);
+}
 function syncMoveBox() {
   const m = P[state.moving], o = m.pose, sg = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
   $('rot').value = o.rot; $('rotOut').textContent = `${o.rot.toFixed(1)}°`;
@@ -1074,7 +1091,8 @@ for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mou
   b.addEventListener('click', () => {
     state.show[key] = !state.show[key]; b.setAttribute('aria-pressed', String(state.show[key]));
     const sel = selH();
-    if (sel && !lineVisible(sel)) select(null); else renderBendList();
+    if (sel && !lineVisible(sel)) select(null); else { renderBendList(); syncBendBox(); }
+    renderNewFor(); renderMoveWhich(); drawFlat();
     applyAppearance(); save();
   });
 }
@@ -1158,7 +1176,10 @@ addEventListener('keydown', e => {
   }
 });
 
-// Config files: Save writes JSON through the browser's save dialog (Chrome/Edge remember the folder for next time), or downloads it.
+// Config files. Pages can't open a dialog at a fixed path, so the dialogs share one remembered-folder id:
+// browse to viewer/config once and Chrome/Edge open there for every later save and load (kept across reloads).
+// Without the file-system dialogs (Safari, Firefox) Save downloads the file and Load uses a plain file picker.
+const CFG_DIALOG = { id: 'chone-fit-config', types: [{ description: 'Chone Fit Lab config', accept: { 'application/json': ['.json'] } }] };
 let cfgHandle = null;
 const cfgStatus = (msg, bad) => { $('cfgStatus').textContent = msg; $('cfgStatus').classList.toggle('err', !!bad); };
 $('cfgSave').addEventListener('click', async () => {
@@ -1166,8 +1187,7 @@ $('cfgSave').addEventListener('click', async () => {
   const name = cfgHandle?.name || 'chone-fit-config.json';
   if (window.showSaveFilePicker) {
     try {
-      const fh = await window.showSaveFilePicker({ suggestedName: name, ...(cfgHandle ? { startIn: cfgHandle } : {}),
-        types: [{ description: 'Chone Fit Lab config', accept: { 'application/json': ['.json'] } }] });
+      const fh = await window.showSaveFilePicker({ ...CFG_DIALOG, suggestedName: name });
       const w = await fh.createWritable(); await w.write(text); await w.close();
       cfgHandle = fh; cfgStatus(`Saved ${fh.name} (${state.hinges.length} bend lines).`); return;
     } catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to a download */ }
@@ -1175,19 +1195,24 @@ $('cfgSave').addEventListener('click', async () => {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })), link = document.createElement('a');
   link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  cfgStatus(`Downloaded ${name}. Move it into the viewer folder to keep it with the project.`);
+  cfgStatus(`Downloaded ${name}. Move it into viewer/config to keep it with the project.`);
 });
-$('cfgLoad').addEventListener('click', () => $('cfgFile').click());
-$('cfgFile').addEventListener('change', async e => {
-  const file = e.target.files[0]; e.target.value = '';
-  if (!file) return;
+$('cfgLoad').addEventListener('click', async () => {
+  if (window.showOpenFilePicker) {
+    try { const [fh] = await window.showOpenFilePicker({ ...CFG_DIALOG, multiple: false }); return loadConfigFile(await fh.getFile()); }
+    catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to the plain file input */ }
+  }
+  $('cfgFile').click();
+});
+$('cfgFile').addEventListener('change', e => { const file = e.target.files[0]; e.target.value = ''; if (file) loadConfigFile(file); });
+async function loadConfigFile(file) {
   try {
     const s = JSON.parse(await file.text());
     if (!s || typeof s !== 'object' || !Array.isArray(s.hinges)) throw new Error('not a Chone Fit Lab config (no bend lines)');
     checkpoint(); applyConfig(s); save();
     cfgStatus(`Loaded ${file.name}${s.savedAt ? `, saved ${new Date(s.savedAt).toLocaleString()}` : ''}. ${state.hinges.length} bend lines.`);
   } catch (err) { cfgStatus(`Couldn't load ${file.name}: ${err.message}`, true); }
-});
+}
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.hinges)) return s; } catch (e) { }
   return null;
