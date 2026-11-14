@@ -1,0 +1,1221 @@
+<title>Chone Fit Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-height 3D workbench on the left, a pattern-room control panel on the right (stacks below on phones). */
+:root {
+  --bg: #e9ecef;
+  --scene: #dfe3e7;
+  --panel: #fbfbfc;
+  --line: #d3d8de;
+  --fg: #1a1e23;
+  --muted: #5b6570;
+  --accent: #c41e2e;          /* glove leather */
+  --accent-soft: #f6dcdf;
+  --foam1: #e2b84f;
+  --foam2: #5f9fc4;
+  --ok: #1f8a4c;
+  --warn: #c98a0b;
+  --bad: #c62828;
+  --grid: #c3c9d0;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --scene: #171b20; --panel: #1a1e24; --line: #2c333b; --fg: #e6e9ed; --muted: #97a1ac;
+    --accent: #e8434f; --accent-soft: #3a1d21; --foam1: #e2b84f; --foam2: #6aaed4;
+    --ok: #43b874; --warn: #e2a53a; --bad: #ef5350; --grid: #2a3139; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --scene: #171b20; --panel: #1a1e24; --line: #2c333b; --fg: #e6e9ed; --muted: #97a1ac;
+  --accent: #e8434f; --accent-soft: #3a1d21; --foam1: #e2b84f; --foam2: #6aaed4;
+  --ok: #43b874; --warn: #e2a53a; --bad: #ef5350; --grid: #2a3139; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+.stage { position: relative; min-width: 0; background: var(--scene); overflow: hidden; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.hud { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); right: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.hint { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: 12px; right: 12px; color: var(--muted); font-size: 12px; pointer-events: none; text-wrap: balance; }
+.hint kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--panel); }
+.reach { position: absolute; right: 12px; top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 170px; max-width: 230px; }
+.reach .big { font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+.reach .lbl { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.reach .where { font-size: 12px; color: var(--muted); }
+
+.panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding-block: 16px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 18px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: .01em; margin: 0; line-height: 1; text-transform: uppercase; }
+.sub { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 6px 0 0; }
+section { display: flex; flex-direction: column; gap: 8px; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; margin: 0; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+h2 small { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-weight: 400; font-size: 12px; }
+.row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; align-items: center; gap: 8px; font-size: 13px; }
+.row output { font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.layers { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
+.chip[aria-pressed="false"] { opacity: .45; }
+.chip[aria-pressed="true"].sel { border-color: var(--accent); background: var(--accent-soft); }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.btn { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 6px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.flat { width: 100%; aspect-ratio: 13 / 16; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); touch-action: none; cursor: crosshair; display: block; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+.bendbox { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.bendbox .name { font-weight: 600; }
+.pickrow { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chip .t { white-space: nowrap; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.bendgroups { display: flex; flex-direction: column; gap: 10px; }
+.bgroup { display: flex; flex-direction: column; gap: 6px; }
+.bgroup h3 { margin: 0; display: flex; align-items: center; gap: 6px; font: 600 12px var(--font-body); color: var(--muted); }
+.bgroup h3 small { font-weight: 400; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:disabled:hover { border-color: var(--line); }
+[hidden] { display: none !important; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.err { color: var(--bad); }
+@media (max-width: 820px) {
+  html, body { height: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .stage { height: 62vh; min-height: 360px; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .reach { top: auto; bottom: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="view" aria-label="3D view of the Chone over the two foam moulds"></canvas>
+    <div class="hud" role="toolbar" aria-label="Camera views">
+      <button class="btn" id="undo" disabled title="Undo (⌘Z / Ctrl+Z)">↶ Undo</button>
+      <button class="btn" data-view="persp">3/4 palm</button>
+      <button class="btn" data-view="top">Back of hand</button>
+      <button class="btn" data-view="knuckle">Knuckle side</button>
+      <button class="btn" data-view="thumb">Thumb side</button>
+      <button class="btn" data-view="front">Fingertips</button>
+      <button class="btn" data-view="palm">Palm side</button>
+    </div>
+    <div class="reach" id="reach">
+      <div class="lbl">Shortest seam reach</div>
+      <div class="big" id="reachVal">–</div>
+      <div class="where" id="reachWhere"></div>
+    </div>
+    <p class="hint" id="hint">Drag a highlighted part up or down to bend it. Drag the background to turn the view, right-drag to pan, scroll to zoom. Hold <kbd>Shift</kbd> to turn the view while over the glove.</p>
+  </div>
+
+  <aside class="panel">
+    <header>
+      <h1>Chone Fit Lab</h1>
+      <p class="sub">Laces Boxing 14 oz. The Chone (leather back) over Mould 1 and Mould 2 (foam). Each bend line bends only the piece(s) you give it. Sizes in inches.</p>
+    </header>
+
+    <section>
+      <h2>Show</h2>
+      <div class="layers">
+        <button class="chip" id="lyChone" aria-pressed="true"><span class="sw" style="background:var(--accent)"></span>Chone</button>
+        <button class="chip" id="lyM1" aria-pressed="true"><span class="sw" style="background:var(--foam1)"></span>Mould 1</button>
+        <button class="chip" id="lyM2" aria-pressed="true"><span class="sw" style="background:var(--foam2)"></span>Mould 2</button>
+      </div>
+      <div class="row"><label for="opacity">Chone see-through</label><input id="opacity" type="range" min="0.15" max="1" step="0.05" value="0.55"><output id="opacityOut"></output></div>
+    </section>
+
+    <section>
+      <h2>Flat pattern</h2>
+      <div class="tools" role="group" aria-label="Flat pattern tool">
+        <button class="btn on" id="toolDraw">Draw lines</button>
+        <button class="btn" id="toolMove">Move pieces</button>
+      </div>
+      <div id="drawOpts" class="pickrow"><span>New lines bend</span><div class="layers" id="newFor"></div></div>
+      <div id="moveOpts" class="stack" hidden>
+        <div class="pickrow"><span>Moving</span><div class="layers" id="moveWhich"></div></div>
+        <div class="row"><label for="rot">Rotation</label><input id="rot" type="range" min="-45" max="45" step="0.5" value="0"><output id="rotOut"></output></div>
+        <p class="note" id="poseOut"></p>
+        <div class="btns"><button class="btn" id="resetPose">Reset this piece</button><button class="btn" id="resetPoses">Reset all positions</button></div>
+      </div>
+      <canvas class="flat" id="flat" aria-label="Flat pattern"></canvas>
+      <p class="note" id="flatNote"></p>
+    </section>
+
+    <section>
+      <h2>Bend lines <small id="bendCount"></small></h2>
+      <div class="bendgroups" id="bendList"></div>
+      <div class="bendbox" id="bendBox">
+        <div class="name" id="bendName"></div>
+        <div class="pickrow"><span>Bends</span><div class="layers" id="bendFor"></div></div>
+        <div class="row"><label for="angle">Bend angle</label><input id="angle" type="range" min="-170" max="170" step="1"><output id="angleOut"></output></div>
+        <div class="row"><label for="radius">Bend radius</label><input id="radius" type="range" min="0.25" max="5" step="0.05"><output id="radiusOut"></output></div>
+        <div class="btns">
+          <button class="btn" id="flip">Bend the other side</button>
+          <button class="btn" id="del">Delete line</button>
+        </div>
+        <p class="note">Positive angles curl toward the palm. Radius is measured at the palm face of the foam; smaller means a sharper fold.</p>
+      </div>
+      <div class="btns">
+        <button class="btn" id="draw3d">Draw on 3D</button>
+        <button class="btn" id="flatten">Flatten all</button>
+        <button class="btn" id="reset">Reset to starting bends</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Chone</h2>
+      <div class="row"><label for="scale">Size</label><input id="scale" type="range" min="90" max="125" step="1" value="100"><output id="scaleOut"></output></div>
+      <p class="note" id="choneSize"></p>
+      <div class="row"><label for="drape">Edge wrap</label><input id="drape" type="range" min="0" max="160" step="1" value="0"><output id="drapeOut"></output></div>
+      <div class="row"><label for="edgeR">Edge rounding</label><input id="edgeR" type="range" min="0" max="1" step="0.05" value="0"><output id="edgeROut"></output></div>
+      <p class="note">Edge wrap folds the leather that sticks out past Mould 1 down over the foam edge. 90° hangs it straight down the side.</p>
+    </section>
+
+    <section>
+      <h2>Moulds</h2>
+      <div class="row"><label for="m1scale">Mould 1 size</label><input id="m1scale" type="range" min="75" max="125" step="0.5" value="100"><output id="m1scaleOut"></output></div>
+      <p class="note" id="m1size"></p>
+      <div class="row"><label for="m2scale">Mould 2 size</label><input id="m2scale" type="range" min="75" max="125" step="0.5" value="100"><output id="m2scaleOut"></output></div>
+      <p class="note" id="m2size"></p>
+      <div class="row"><label for="m1thick">Mould 1 thick</label><input id="m1thick" type="range" min="0.25" max="2" step="0.05" value="1"><output id="m1thickOut"></output></div>
+      <div class="row"><label for="m2thick">Mould 2 thick</label><input id="m2thick" type="range" min="0.25" max="2" step="0.05" value="1"><output id="m2thickOut"></output></div>
+      <p class="note" id="foamTotalNote"></p>
+      <div class="btns"><button class="btn" id="resetSizes">Moulds back to 100%</button><button class="btn" id="resetThick">Thickness back to 1"</button></div>
+      <p class="note">Scales each mould about its own centre, so it stays put under the Chone. Lines that bend only that mould scale with it. Use the arrow keys on a slider for 0.5% steps.</p>
+    </section>
+
+    <section>
+      <h2>Seam reach</h2>
+      <div class="row"><label for="target">Should reach</label><input id="target" type="range" min="0.25" max="4" step="0.05" value="2"><output id="targetOut"></output></div>
+      <p class="note">How far down the foam edge the Chone stitch line ends up, measured from the top of Mould 1. The two moulds together are <span id="foamTotalInline">2.00"</span> thick. The wrist edge is left out because it's sewn to the cuff.</p>
+      <div class="legend"><span><i style="background:var(--ok)"></i>reaches</span><span><i style="background:var(--warn)"></i>within 0.5"</span><span><i style="background:var(--bad)"></i>short</span><span><i style="background:var(--muted)"></i>wrist edge</span></div>
+    </section>
+    <section>
+      <h2>Config</h2>
+      <div class="btns">
+        <button class="btn" id="cfgSave">Save config…</button>
+        <button class="btn" id="cfgLoad">Load config…</button>
+        <input type="file" id="cfgFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="note" id="cfgStatus">Saves everything (bend lines, piece positions, sizes, thicknesses, sliders) as a JSON file. Save it into the <b>viewer</b> folder to keep it with the project, then load it in another browser, machine or session.</p>
+    </section>
+    <p class="note err" id="err" hidden></p>
+  </aside>
+</div>
+
+<script src="glove-data.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const D = window.GLOVE_DATA;
+const DEG = Math.PI / 180;
+let HTOP = 2.04;                 // Chone sits on top of Mould 1 (set from the mould thicknesses in applyThickness)
+const CHONE_GAP = 0.04;          // leather sits this far above the foam top
+const ANCHOR = [-0.5, 4.0];      // back-of-hand centre: the part that never moves
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------------------------------------------------------------- pieces
+function makePiece(key, src, opts) {
+  const N = src.verts.length;
+  const base = new Float32Array(N * 2);
+  src.verts.forEach((v, i) => { base[2 * i] = v[0]; base[2 * i + 1] = v[1]; });
+  const tris = Uint32Array.from(src.tris.flat());
+  const sets = Array.from({ length: N }, () => new Set());
+  for (let t = 0; t < tris.length; t += 3) {
+    const a = tris[t], b = tris[t + 1], c = tris[t + 2];
+    sets[a].add(b); sets[a].add(c); sets[b].add(a); sets[b].add(c); sets[c].add(a); sets[c].add(b);
+  }
+  let cx = 0, cy = 0;
+  for (let k = 0; k < src.nBoundary; k++) { cx += base[2 * k]; cy += base[2 * k + 1]; }
+  return { key, N, base, flat: base.slice(), tris, nB: src.nBoundary, adj: sets.map(s => Int32Array.from(s)),
+    c0: [cx / src.nBoundary, cy / src.nBoundary], pose: { x: 0, y: 0, rot: 0 }, grid: null, ...opts };
+}
+const P = {
+  chone: makePiece('chone', D.chone, { label: 'Chone', col: 'accent', neutral: HTOP, slab: false }),
+  mould1: makePiece('mould1', D.mould1, { label: 'Mould 1', col: 'foam1', neutral: 1.5, z0: 1, z1: 2, slab: true, thick: 1 }),
+  mould2: makePiece('mould2', D.mould2, { label: 'Mould 2', col: 'foam2', neutral: 0.5, z0: 0, z1: 1, slab: true, thick: 1 }),
+};
+// Layer stack: Mould 2 from z = 0, Mould 1 on top of it, the Chone on top of Mould 1. Each slab bends about its mid-thickness.
+function foamTotal() { return P.mould1.thick + P.mould2.thick; }
+function applyThickness() {
+  const m1 = P.mould1, m2 = P.mould2;
+  m2.z0 = 0; m2.z1 = m2.thick; m2.neutral = m2.thick / 2;
+  m1.z0 = m2.z1; m1.z1 = m2.z1 + m1.thick; m1.neutral = (m1.z0 + m1.z1) / 2;
+  HTOP = m1.z1 + CHONE_GAP; P.chone.neutral = HTOP;
+}
+// Placement on the sheet: each piece can be scaled, moved (x, y) and turned (rot, degrees) about its own centre.
+// The Chone scales about the wrist-edge origin (to match scale_chone.py); a mould scales about its own centre.
+function pieceScale(p) { return (p.key === 'chone' ? state.scale : (p.pose.scale ?? 100)) / 100; }
+function pivotOf(p, s) { return p.key === 'chone' ? [p.c0[0] * s, p.c0[1] * s] : p.c0; }
+function place(p, x, y) { // pattern point (as exported, unscaled) -> placed position
+  const s = pieceScale(p), [cx, cy] = pivotOf(p, s), a = p.pose.rot * DEG, c = Math.cos(a), sn = Math.sin(a);
+  const dx = (x - p.c0[0]) * s, dy = (y - p.c0[1]) * s;
+  return [dx * c - dy * sn + cx + p.pose.x, dx * sn + dy * c + cy + p.pose.y];
+}
+function anchorOf(p) { return place(p, ANCHOR[0], ANCHOR[1]); }
+function centerOf(p) { const [cx, cy] = pivotOf(p, pieceScale(p)); return [cx + p.pose.x, cy + p.pose.y]; }
+const PIECES = [P.chone, P.mould1, P.mould2];
+const stitchBase = Float32Array.from(D.chone.stitch.flat());
+const stitchN = stitchBase.length / 2;
+const stitchFlat = stitchBase.slice();
+
+function nearestVertex(p, x, y) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < p.N; i++) { const dx = p.flat[2 * i] - x, dy = p.flat[2 * i + 1] - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+function pointInRing(f, n, x, y) {
+  let hit = false;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = f[2 * i], yi = f[2 * i + 1], xj = f[2 * j], yj = f[2 * j + 1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+// ---------------------------------------------------------------- state
+const state = {
+  scale: 100, drape: 0, edgeR: 0, target: 2, opacity: 0.55,
+  show: { chone: true, mould1: true, mould2: true },
+  hinges: [], selected: null,
+  tool: 'draw', newFor: { chone: true, mould1: false, mould2: false }, moving: 'chone',
+};
+const ALL = () => ({ chone: true, mould1: true, mould2: true });
+let hingeSeq = 0;
+function presetHinges() {
+  const tip = D.landmarks.thumbNotch, tb = [-2.9, 0.6];
+  const dx = tb[0] - tip[0], dy = tb[1] - tip[1], L = Math.hypot(dx, dy);
+  return [
+    { name: 'Thumb', a: [tip[0] + dx / L * 0.06, tip[1] + dy / L * 0.06], b: tb, angle: 55, radius: 1.5, flip: false, pieces: ALL() },
+    { name: 'Knuckles', a: [-5, 9.6], b: [3, 9.6], angle: 70, radius: 1.5, flip: false, pieces: ALL() },
+    { name: 'Fingertips', a: [-4.5, 12.4], b: [3, 12.4], angle: 55, radius: 1.2, flip: false, pieces: ALL() },
+  ];
+}
+function addHinge(h) {
+  const hh = { id: ++hingeSeq, cache: {}, dist: {}, ...h, pieces: { ...(h.pieces || ALL()) } };
+  state.hinges.push(hh); updateHingeGeom(hh); return hh;
+}
+
+// ---------------------------------------------------------------- hinge maths
+const onPieces = h => PIECES.filter(p => h.pieces[p.key]);
+const visPieces = h => onPieces(h).filter(p => state.show[p.key]); // pieces of this line that are shown
+const lineVisible = h => visPieces(h).length > 0;                   // hidden once all its pieces are hidden
+function nextBendName() {
+  let n = 0;
+  for (const h of state.hinges) { const m = /^Bend (\d+)$/.exec(h.name); if (m) n = Math.max(n, +m[1]); }
+  return `Bend ${n + 1}`;
+}
+function updateHingeGeom(h) {
+  const dx = h.b[0] - h.a[0], dy = h.b[1] - h.a[1], L = Math.hypot(dx, dy) || 1;
+  h.ux = dx / L; h.uy = dy / L; h.len = L;
+  const main = onPieces(h)[0] || P.chone, A = anchorOf(main);
+  let nx = -h.uy, ny = h.ux;
+  if ((A[0] - h.a[0]) * nx + (A[1] - h.a[1]) * ny > 0) { nx = -nx; ny = -ny; }
+  if (h.flip) { nx = -nx; ny = -ny; }
+  h.nx = nx; h.ny = ny;
+  for (const p of PIECES) {
+    if (!h.pieces[p.key]) { h.cache[p.key] = null; continue; }
+    // distance from this piece's anchor, for ordering (nearest bends are applied last / outermost)
+    const B = anchorOf(p), t = Math.max(0, Math.min(L, (B[0] - h.a[0]) * h.ux + (B[1] - h.a[1]) * h.uy));
+    h.dist[p.key] = Math.hypot(h.a[0] + h.ux * t - B[0], h.a[1] + h.uy * t - B[1]);
+    h.cache[p.key] = computeFree(h, p);
+  }
+  h.distMain = h.dist[main.key];
+}
+function computeFree(h, p) {
+  const f = p.flat, N = p.N, n = p.nB;
+  const d = new Float32Array(N), t = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const rx = f[2 * i] - h.a[0], ry = f[2 * i + 1] - h.a[1];
+    d[i] = rx * h.nx + ry * h.ny; t[i] = rx * h.ux + ry * h.uy;
+  }
+  // where the infinite line crosses this piece's outline -> stretch the cut to the edges
+  const ts = [];
+  for (let k = 0; k < n; k++) {
+    const k2 = (k + 1) % n, d1 = d[k], d2 = d[k2];
+    if ((d1 > 0) !== (d2 > 0)) { const r = d1 / (d1 - d2); ts.push(t[k] + (t[k2] - t[k]) * r); }
+  }
+  ts.sort((x, y) => x - y);
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k + 1 < ts.length; k += 2) if (ts[k + 1] >= -0.05 && ts[k] <= h.len + 0.05) { lo = Math.min(lo, ts[k]); hi = Math.max(hi, ts[k + 1]); }
+  if (lo > hi) { lo = 0; hi = h.len; }
+  lo -= 0.05; hi += 0.05;
+  const A = anchorOf(p), anchorIdx = nearestVertex(p, A[0], A[1]);
+  const fill = (restrict) => {
+    const free = new Uint8Array(N), q = [];
+    for (let i = 0; i < N; i++) if (d[i] > 0 && d[i] < 0.5 && t[i] >= lo && t[i] <= hi) { free[i] = 1; q.push(i); }
+    while (q.length) {
+      const i = q.pop();
+      for (const j of p.adj[i]) {
+        if (free[j]) continue;
+        if (restrict && d[j] <= 0) continue;
+        if ((d[i] > 0) !== (d[j] > 0)) {
+          const tc = t[i] + (t[j] - t[i]) * (d[i] / (d[i] - d[j]));
+          if (tc >= lo && tc <= hi) continue;
+        }
+        free[j] = 1; q.push(j);
+      }
+    }
+    return free;
+  };
+  let free = fill(false);
+  if (free[anchorIdx]) free = fill(true); // line doesn't cut the piece through: fall back to its side of the line
+  return { free, d, lo, hi };
+}
+function sortedHinges() { return [...state.hinges].sort((x, y) => x.distMain - y.distMain); }
+function orderFor(p) { return state.hinges.filter(h => h.cache[p.key]).sort((x, y) => x.dist[p.key] - y.dist[p.key]); }
+
+// Rigid motion of one point for one bend. Mutates v (array of 3).
+function bendPoint(v, h, p, d) {
+  const th = h.angle * DEG;
+  if (th === 0 || d <= 0) return;
+  const R = h.radius, zc = th > 0 ? -R : HTOP + R;
+  const rn = Math.abs(p.neutral - zc);
+  const s = Math.min(d, Math.abs(th) * rn);
+  const phi = Math.sign(th) * s / rn;
+  let x = v[0] - s * h.nx - h.a[0], y = v[1] - s * h.ny - h.a[1], z = v[2] - zc;
+  const ux = -h.ny, uy = h.nx; // axis = z × n
+  const c = Math.cos(phi), sn = Math.sin(phi), dot = ux * x + uy * y;
+  const cx = uy * z, cy = -ux * z, cz = ux * y - uy * x; // u × v
+  v[0] = x * c + cx * sn + ux * dot * (1 - c) + h.a[0];
+  v[1] = y * c + cy * sn + uy * dot * (1 - c) + h.a[1];
+  v[2] = z * c + cz * sn + zc;
+}
+
+// ---------------------------------------------------------------- Chone flat prep (scale, drape basis, stitch lookup)
+const drape = { e: null, qx: null, qy: null, nx: null, ny: null };
+let stitchBary = null, stitchM1 = null;
+// Re-place one piece on the sheet (scale, move, turn), then redo everything that depends on where it is.
+function updateFlat(p) {
+  const s = pieceScale(p);
+  for (let i = 0; i < p.N; i++) { const q = place(p, p.base[2 * i], p.base[2 * i + 1]); p.flat[2 * i] = q[0]; p.flat[2 * i + 1] = q[1]; }
+  if (p === P.chone) {
+    for (let k = 0; k < stitchN; k++) { const q = place(p, stitchBase[2 * k], stitchBase[2 * k + 1]); stitchFlat[2 * k] = q[0]; stitchFlat[2 * k + 1] = q[1]; }
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < p.nB; i++) { x0 = Math.min(x0, p.base[2 * i]); x1 = Math.max(x1, p.base[2 * i]); y0 = Math.min(y0, p.base[2 * i + 1]); y1 = Math.max(y1, p.base[2 * i + 1]); }
+    $('choneSize').textContent = `Cut line ${((x1 - x0) * s).toFixed(2)}" wide × ${((y1 - y0) * s).toFixed(2)}" long. The 105–120% test files in the folder match these sizes.`;
+  }
+  p.grid = buildGrid(p);
+  writeUV(p);
+  if (p === P.chone || p === P.mould1) prepChone();
+  for (const h of state.hinges) if (h.pieces[p.key]) updateHingeGeom(h);
+}
+// Move/turn a piece. Lines that bend only this piece travel with it; shared lines stay where they are.
+function setPose(p, np) { // np: any of x, y, rot, scale (mould size, %)
+  const o = p.pose, n = { ...o, ...np };
+  const s0 = pieceScale(p); p.pose = n; const s1 = pieceScale(p); p.pose = o;
+  const C0 = pivotOf(p, s0), C1 = pivotOf(p, s1), a = -o.rot * DEG, b = n.rot * DEG;
+  const map = pt => { // placed point under the old pose -> same pattern point under the new pose
+    let x = pt[0] - o.x - C0[0], y = pt[1] - o.y - C0[1];
+    [x, y] = [(x * Math.cos(a) - y * Math.sin(a)) * s1 / s0, (x * Math.sin(a) + y * Math.cos(a)) * s1 / s0];
+    return [x * Math.cos(b) - y * Math.sin(b) + C1[0] + n.x, x * Math.sin(b) + y * Math.cos(b) + C1[1] + n.y];
+  };
+  for (const h of state.hinges) { const ps = onPieces(h); if (ps.length === 1 && ps[0] === p) { h.a = map(h.a); h.b = map(h.b); } }
+  p.pose = n;
+  updateFlat(p);
+}
+function buildGrid(p) { // triangle grid for point lookups on a flat piece
+  const G = 0.5, grid = new Map(), f = p.flat, T = p.tris;
+  for (let t = 0; t < T.length; t += 3) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let k = 0; k < 3; k++) { const x = f[2 * T[t + k]], y = f[2 * T[t + k] + 1]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    for (let gx = Math.floor(x0 / G); gx <= Math.floor(x1 / G); gx++) for (let gy = Math.floor(y0 / G); gy <= Math.floor(y1 / G); gy++) {
+      const key = gx + ',' + gy; if (!grid.has(key)) grid.set(key, []); grid.get(key).push(t);
+    }
+  }
+  return { G, grid };
+}
+function prepChone() {
+  const c = P.chone;
+  // drape basis: signed distance from Mould 1's outline (positive outside)
+  const m = P.mould1, mf = m.flat, mn = m.nB;
+  drape.e = new Float32Array(c.N); drape.qx = new Float32Array(c.N); drape.qy = new Float32Array(c.N);
+  drape.nx = new Float32Array(c.N); drape.ny = new Float32Array(c.N);
+  for (let i = 0; i < c.N; i++) {
+    const x = c.flat[2 * i], y = c.flat[2 * i + 1];
+    let bd = Infinity, bx = 0, by = 0;
+    for (let k = 0; k < mn; k++) {
+      const k2 = (k + 1) % mn, ax = mf[2 * k], ay = mf[2 * k + 1], ex = mf[2 * k2] - ax, ey = mf[2 * k2 + 1] - ay;
+      let r = ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey); r = Math.max(0, Math.min(1, r));
+      const px = ax + ex * r, py = ay + ey * r, dd = (x - px) ** 2 + (y - py) ** 2;
+      if (dd < bd) { bd = dd; bx = px; by = py; }
+    }
+    const dist = Math.sqrt(bd), inside = pointInRing(mf, mn, x, y);
+    drape.e[i] = inside ? -dist : dist; drape.qx[i] = bx; drape.qy[i] = by;
+    drape.nx[i] = dist > 1e-6 ? (x - bx) / dist : 0; drape.ny[i] = dist > 1e-6 ? (y - by) / dist : 0;
+  }
+  stitchBary = []; stitchM1 = new Int32Array(stitchN);
+  for (let k = 0; k < stitchN; k++) {
+    const x = stitchFlat[2 * k], y = stitchFlat[2 * k + 1];
+    stitchBary.push(locate(c, x, y));
+    let best = 0, bd = Infinity;
+    for (let j = 0; j < mn; j++) { const dd = (mf[2 * j] - x) ** 2 + (mf[2 * j + 1] - y) ** 2; if (dd < bd) { bd = dd; best = j; } }
+    stitchM1[k] = best;
+  }
+}
+function locate(p, x, y) {
+  const f = p.flat, T = p.tris, g = p.grid, cell = g.grid.get(Math.floor(x / g.G) + ',' + Math.floor(y / g.G));
+  if (!cell) return null;
+  for (const t of cell) {
+    const a = T[t], b = T[t + 1], cc = T[t + 2];
+    const ax = f[2 * a], ay = f[2 * a + 1], bx = f[2 * b], by = f[2 * b + 1], cx = f[2 * cc], cy = f[2 * cc + 1];
+    const det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+    const w0 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / det;
+    const w1 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / det;
+    const w2 = 1 - w0 - w1;
+    if (w0 >= -1e-4 && w1 >= -1e-4 && w2 >= -1e-4) return [a, b, cc, w0, w1, w2];
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- three.js scene
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 500);
+camera.up.set(0, 1, 0); // fingers point up the screen
+const TARGET = new THREE.Vector3(-2.4, 7.4, 0.5);
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(TARGET); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-8, 10, -30); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.6); fill.position.set(14, 6, 20); scene.add(fill);
+const mat = new THREE.GridHelper(30, 30, 0x888888, 0x888888);
+mat.position.set(-2.4, -1.5, 0.5); mat.material.transparent = true; mat.material.opacity = 0.25; scene.add(mat);
+
+function buildMesh(p, color) {
+  const src = [], zl = [], idx = [];
+  if (!p.slab) { for (let i = 0; i < p.N; i++) { src.push(i); zl.push(0); } idx.push(...p.tris); }
+  else {
+    const N = p.N;
+    for (let i = 0; i < N; i++) { src.push(i); zl.push(1); } // zl: 1 = top face, 0 = bottom face
+    for (let i = 0; i < N; i++) { src.push(i); zl.push(0); }
+    for (let t = 0; t < p.tris.length; t += 3) { idx.push(p.tris[t], p.tris[t + 1], p.tris[t + 2]); idx.push(N + p.tris[t], N + p.tris[t + 2], N + p.tris[t + 1]); }
+    const w = 2 * N;
+    for (let k = 0; k < p.nB; k++) { src.push(k); zl.push(1); src.push(k); zl.push(0); }
+    for (let k = 0; k < p.nB; k++) {
+      const k2 = (k + 1) % p.nB, t0 = w + 2 * k, b0 = t0 + 1, t1 = w + 2 * k2, b1 = t1 + 1;
+      idx.push(b0, b1, t1, b0, t1, t0);
+    }
+  }
+  const n = src.length, g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setIndex(idx);
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: p.slab ? 0.95 : 0.55, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: p.slab ? 1 : 0, polygonOffsetUnits: 1 });
+  const mesh = new THREE.Mesh(g, m);
+  mesh.userData.piece = p; p.mesh = mesh; p.src = Int32Array.from(src); p.zl = Float32Array.from(zl); p.baseColor = color;
+  scene.add(mesh);
+  writeUV(p);
+}
+function writeUV(p) {
+  if (!p.mesh) return;
+  const uv = p.mesh.geometry.attributes.uv.array;
+  for (let r = 0; r < p.src.length; r++) { uv[2 * r] = p.flat[2 * p.src[r]]; uv[2 * r + 1] = p.flat[2 * p.src[r] + 1]; }
+  p.mesh.geometry.attributes.uv.needsUpdate = true;
+}
+buildMesh(P.mould2, 'foam2'); buildMesh(P.mould1, 'foam1'); buildMesh(P.chone, 'accent');
+P.chone.mesh.renderOrder = 2;
+
+const edgeLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x000000 }));
+edgeLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P.chone.nB * 3), 3));
+scene.add(edgeLine);
+const stitchLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true }));
+stitchLine.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(stitchN * 3), 3));
+stitchLine.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(stitchN * 3), 3));
+stitchLine.renderOrder = 3; scene.add(stitchLine);
+const hingeLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true }));
+hingeLines.renderOrder = 4; scene.add(hingeLines);
+const pickMarker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+pickMarker.renderOrder = 5; pickMarker.visible = false; scene.add(pickMarker);
+
+// ---------------------------------------------------------------- deformation
+const tmp = [0, 0, 0];
+function choneLocal(i, out) {
+  const c = P.chone, x = c.flat[2 * i], y = c.flat[2 * i + 1], e = drape.e[i];
+  if (e <= 0) { out[0] = x; out[1] = y; out[2] = HTOP; return; }
+  const psi = state.drape * DEG, rho = state.edgeR, qx = drape.qx[i], qy = drape.qy[i], nx = drape.nx[i], ny = drape.ny[i];
+  const arc = rho * psi;
+  if (rho > 1e-4 && e <= arc) {
+    const a = e / rho;
+    out[0] = qx + nx * rho * Math.sin(a); out[1] = qy + ny * rho * Math.sin(a); out[2] = HTOP - rho + rho * Math.cos(a);
+  } else {
+    const ex = rho * Math.sin(psi), ez = HTOP - rho + rho * Math.cos(psi), t = e - arc;
+    const hzn = ex + t * Math.cos(psi);
+    out[0] = qx + nx * hzn; out[1] = qy + ny * hzn; out[2] = ez - t * Math.sin(psi);
+  }
+}
+function deformPiece(p, order) { // order: only the bends that act on this piece
+  const pos = p.mesh.geometry.attributes.position.array, src = p.src, zl = p.zl;
+  for (let r = 0; r < src.length; r++) {
+    const i = src[r];
+    if (p.slab) { tmp[0] = p.flat[2 * i]; tmp[1] = p.flat[2 * i + 1]; tmp[2] = zl[r] ? p.z1 : p.z0; } else choneLocal(i, tmp);
+    for (let k = order.length - 1; k >= 0; k--) {
+      const hc = order[k].cache[p.key];
+      if (hc.free[i]) bendPoint(tmp, order[k], p, hc.d[i]);
+    }
+    pos[3 * r] = tmp[0]; pos[3 * r + 1] = tmp[1]; pos[3 * r + 2] = tmp[2];
+  }
+  const g = p.mesh.geometry;
+  g.attributes.position.needsUpdate = true; g.computeVertexNormals(); g.computeBoundingSphere();
+}
+const cTmp = new THREE.Color(), cWhite = new THREE.Color(0xffffff);
+function colorPiece(p) {
+  const col = p.mesh.geometry.attributes.color.array, base = new THREE.Color(css('--' + p.baseColor));
+  const sel = state.hinges.find(h => h.id === state.selected), hov = state.hinges.find(h => h.id === hover.id);
+  const fs = sel?.cache[p.key]?.free ?? null, fh = hov?.cache[p.key]?.free ?? null;
+  for (let r = 0; r < p.src.length; r++) {
+    const i = p.src[r];
+    cTmp.copy(base);
+    if (fs && fs[i]) cTmp.lerp(cWhite, 0.32); else if (fh && fh[i]) cTmp.lerp(cWhite, 0.18);
+    col[3 * r] = cTmp.r; col[3 * r + 1] = cTmp.g; col[3 * r + 2] = cTmp.b;
+  }
+  p.mesh.geometry.attributes.color.needsUpdate = true;
+}
+function regionName(x, y) {
+  if (y > 12.3) return 'at the fingertips';
+  if (x > 1.8) return 'on the knuckle side';
+  if (x < -3.9 && y < 6.3) return 'around the thumb';
+  if (y < 1.5) return 'near the wrist';
+  return 'on the index-finger side';
+}
+// Bent position + normal of a located flat point. Render vertices 0..N-1 are the flat points (the top face, for slabs).
+function pointAt(p, b, out) {
+  const pos = p.mesh.geometry.attributes.position.array, nor = p.mesh.geometry.attributes.normal.array;
+  const [a, bb, c, w0, w1, w2] = b;
+  for (let k = 0; k < 3; k++) {
+    out[k] = pos[3 * a + k] * w0 + pos[3 * bb + k] * w1 + pos[3 * c + k] * w2;
+    out[k + 3] = nor[3 * a + k] * w0 + nor[3 * bb + k] * w1 + nor[3 * c + k] * w2;
+  }
+}
+function updateStitch() {
+  const sp = stitchLine.geometry.attributes.position.array, sc = stitchLine.geometry.attributes.color.array;
+  const m1 = P.mould1.mesh.geometry.attributes.position.array, N1 = P.mould1.N;
+  const ok = new THREE.Color(css('--ok')), warn = new THREE.Color(css('--warn')), bad = new THREE.Color(css('--bad')), grey = new THREE.Color(css('--muted'));
+  const o = [0, 0, 0, 0, 0, 0];
+  let minD = Infinity, minK = -1, good = 0, counted = 0;
+  for (let k = 0; k < stitchN; k++) {
+    const b = stitchBary[k];
+    if (!b) { continue; }
+    pointAt(P.chone, b, o);
+    const nl = Math.hypot(o[3], o[4], o[5]) || 1;
+    sp[3 * k] = o[0] + o[3] / nl * 0.03; sp[3 * k + 1] = o[1] + o[4] / nl * 0.03; sp[3 * k + 2] = o[2] + o[5] / nl * 0.03;
+    let c = grey;
+    const wrist = stitchBase[2 * k + 1] < 0.02;
+    if (!wrist) {
+      const j = stitchM1[k];
+      const tx = m1[3 * j], ty = m1[3 * j + 1], tz = m1[3 * j + 2];
+      const bx = m1[3 * (N1 + j)] - tx, by = m1[3 * (N1 + j) + 1] - ty, bz = m1[3 * (N1 + j) + 2] - tz;
+      const bl = Math.hypot(bx, by, bz) || 1;
+      const depth = ((o[0] - tx) * bx + (o[1] - ty) * by + (o[2] - tz) * bz) / bl;
+      counted++;
+      if (depth >= state.target) { c = ok; good++; } else if (depth >= state.target - 0.5) c = warn; else c = bad;
+      if (depth < minD) { minD = depth; minK = k; }
+    }
+    sc[3 * k] = c.r; sc[3 * k + 1] = c.g; sc[3 * k + 2] = c.b;
+  }
+  stitchLine.geometry.attributes.position.needsUpdate = true; stitchLine.geometry.attributes.color.needsUpdate = true;
+  if (minK >= 0) {
+    $('reachVal').textContent = `${minD.toFixed(2)}"`;
+    $('reachVal').style.color = minD >= state.target ? css('--ok') : minD >= state.target - 0.5 ? css('--warn') : css('--bad');
+    $('reachWhere').textContent = `${regionName(stitchBase[2 * minK], stitchBase[2 * minK + 1])}. Target ${state.target.toFixed(2)}". ${Math.round(good / counted * 100)}% of the seam reaches it.`;
+  }
+}
+function updateEdge() {
+  const pos = P.chone.mesh.geometry.attributes.position.array, e = edgeLine.geometry.attributes.position.array;
+  for (let k = 0; k < P.chone.nB * 3; k++) e[k] = pos[k];
+  edgeLine.geometry.attributes.position.needsUpdate = true;
+  edgeLine.material.color.set(css('--fg'));
+}
+function updateHingeLines() {
+  const verts = [], cols = [], o = [0, 0, 0, 0, 0, 0];
+  const bg = new THREE.Color(css('--scene'));
+  for (const h of state.hinges) {
+    // drawn on the top-most shown piece the line bends; dimmed unless selected
+    const p = visPieces(h)[0];
+    if (!p) continue;
+    const hc = h.cache[p.key], S = 40, col = new THREE.Color(lineColor(h));
+    if (h.id !== state.selected) col.lerp(bg, 0.35);
+    let prev = null;
+    for (let s = 0; s <= S; s++) {
+      const t = hc.lo + (hc.hi - hc.lo) * s / S, b = locate(p, h.a[0] + h.ux * t, h.a[1] + h.uy * t);
+      let cur = null;
+      if (b) { pointAt(p, b, o); const nl = Math.hypot(o[3], o[4], o[5]) || 1; cur = [o[0] + o[3] / nl * 0.06, o[1] + o[4] / nl * 0.06, o[2] + o[5] / nl * 0.06]; }
+      if (prev && cur) { verts.push(...prev, ...cur); cols.push(col.r, col.g, col.b, col.r, col.g, col.b); }
+      prev = cur;
+    }
+  }
+  const g = hingeLines.geometry;
+  g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+}
+// A line takes its piece's colour; a line shared by several pieces is drawn in the text colour.
+function lineColor(h) { const ps = onPieces(h); return ps.length === 1 ? css('--' + ps[0].col) : css('--fg'); }
+let dirty = true, colorsDirty = true;
+function refresh() {
+  for (const p of PIECES) deformPiece(p, orderFor(p));
+  updateEdge(); updateStitch(); updateHingeLines();
+}
+
+// ---------------------------------------------------------------- appearance & theme
+function applyAppearance() {
+  scene.background = new THREE.Color(css('--scene'));
+  mat.material.color.set(css('--grid'));
+  const cm = P.chone.mesh.material;
+  cm.opacity = state.opacity; cm.transparent = state.opacity < 1; cm.depthWrite = state.opacity >= 1; cm.needsUpdate = true;
+  P.chone.mesh.visible = state.show.chone; edgeLine.visible = state.show.chone; stitchLine.visible = state.show.chone;
+  P.mould1.mesh.visible = state.show.mould1; P.mould2.mesh.visible = state.show.mould2;
+  colorsDirty = true; dirty = true; drawFlat();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAppearance);
+new MutationObserver(applyAppearance).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// ---------------------------------------------------------------- camera views
+const VIEWS = {
+  persp: [9, -5, -30], top: [0, 0, 36], knuckle: [32, 0, -2], thumb: [-32, 0, -2], front: [0, 32, -6], palm: [0, 0, -36],
+};
+function setView(k) {
+  const v = VIEWS[k];
+  camera.position.set(TARGET.x + v[0], TARGET.y + v[1], TARGET.z + v[2]);
+  controls.target.copy(TARGET); controls.update();
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
+// ---------------------------------------------------------------- picking & dragging on 3D
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const hover = { id: null };
+function pick(ev) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const objs = PIECES.filter(p => p.mesh.visible).map(p => p.mesh);
+  const hit = ray.intersectObjects(objs, false)[0];
+  return hit || null;
+}
+function hingeAtVertex(p, i) {
+  const order = orderFor(p);
+  for (let k = order.length - 1; k >= 0; k--) if (order[k].cache[p.key].free[i]) return order[k];
+  return null;
+}
+function hingeAtHit(hit) {
+  const p = hit.object.userData.piece, i = p.src[hit.face.a];
+  return hingeAtVertex(p, i);
+}
+let drag = null, drawMode = false, drawFirst = null;
+canvas.addEventListener('pointerdown', ev => {
+  if (ev.button !== 0 || ev.shiftKey || ev.altKey) return;
+  const hit = pick(ev);
+  if (drawMode) {
+    if (!hit) return;
+    controls.enabled = false;
+    const f = [hit.uv.x, hit.uv.y];
+    if (!drawFirst) { drawFirst = f; pickMarker.position.copy(hit.point); pickMarker.visible = true; }
+    else {
+      if (Math.hypot(f[0] - drawFirst[0], f[1] - drawFirst[1]) > 0.5) {
+        checkpoint();
+        const h = addHinge({ name: nextBendName(), a: drawFirst, b: f, angle: 30, radius: 1.5, flip: false, pieces: { ...state.newFor } });
+        select(h.id); save();
+      }
+      drawFirst = null; pickMarker.visible = false; setDrawMode(false);
+    }
+    return;
+  }
+  if (!hit) return;
+  const h = hingeAtHit(hit);
+  if (!h) return;
+  controls.enabled = false;
+  select(h.id);
+  checkpoint();
+  drag = { id: h.id, y: ev.clientY, x: ev.clientX, angle: h.angle, ck: undoStack.length };
+  canvas.setPointerCapture(ev.pointerId);
+  canvas.style.cursor = 'grabbing';
+}, { capture: true });
+canvas.addEventListener('pointermove', ev => {
+  if (drag) {
+    const h = state.hinges.find(x => x.id === drag.id);
+    h.angle = Math.max(-170, Math.min(170, Math.round(drag.angle + (ev.clientY - drag.y) * 0.6)));
+    syncBendBox(); dirty = true; return;
+  }
+  if (ev.buttons) return;
+  const hit = pick(ev), h = hit && !drawMode ? hingeAtHit(hit) : null;
+  canvas.style.cursor = drawMode ? (hit ? 'crosshair' : 'default') : h ? 'grab' : 'default';
+  const id = h ? h.id : null;
+  if (id !== hover.id) { hover.id = id; colorsDirty = true; }
+});
+const endDrag = () => {
+  if (drag) {
+    const h = state.hinges.find(x => x.id === drag.id);
+    if (h && h.angle === drag.angle) dropCheckpoint(drag.ck); // a click, not a bend
+    drag = null; canvas.style.cursor = 'grab'; save(); drawFlat(); renderBendList();
+  }
+  controls.enabled = true;
+};
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointerleave', () => { if (hover.id !== null) { hover.id = null; colorsDirty = true; } });
+function setDrawMode(on) {
+  drawMode = on; drawFirst = null; pickMarker.visible = false; controls.enabled = true;
+  $('draw3d').classList.toggle('on', on);
+  $('draw3d').textContent = on ? 'Click two points on the glove…' : 'Draw on 3D';
+}
+$('draw3d').addEventListener('click', () => setDrawMode(!drawMode));
+
+// ---------------------------------------------------------------- flat pattern canvas
+const flat = $('flat'), fctx = flat.getContext('2d');
+const FB = { x0: -9.2, x1: 4.2, y0: -0.8, y1: 15.8 };
+let fs = 1, fdpr = 1;
+function fx(x) { return (x - FB.x0) * fs; }
+function fy(y) { return (FB.y1 - y) * fs; }
+function fromF(px, py) { return [px / fs + FB.x0, FB.y1 - py / fs]; }
+function sizeFlat() {
+  const w = flat.clientWidth, h = flat.clientHeight; fdpr = Math.min(window.devicePixelRatio || 1, 2);
+  flat.width = Math.round(w * fdpr); flat.height = Math.round(h * fdpr);
+  fs = Math.min(w / (FB.x1 - FB.x0), h / (FB.y1 - FB.y0));
+  drawFlat();
+}
+function ringPath(f, n) { fctx.beginPath(); for (let k = 0; k < n; k++) { const x = fx(f[2 * k]), y = fy(f[2 * k + 1]); k ? fctx.lineTo(x, y) : fctx.moveTo(x, y); } fctx.closePath(); }
+let flatDraft = null;
+function drawFlat() {
+  if (!flat.width) return;
+  fctx.setTransform(fdpr, 0, 0, fdpr, 0, 0);
+  fctx.clearRect(0, 0, flat.width, flat.height);
+  // 1" grid, like a cutting mat
+  fctx.strokeStyle = css('--grid'); fctx.lineWidth = 0.5; fctx.beginPath();
+  for (let x = Math.ceil(FB.x0); x <= FB.x1; x++) { fctx.moveTo(fx(x), 0); fctx.lineTo(fx(x), flat.height); }
+  for (let y = Math.ceil(FB.y0); y <= FB.y1; y++) { fctx.moveTo(0, fy(y)); fctx.lineTo(flat.width, fy(y)); }
+  fctx.stroke();
+  const sel = selH(), moving = state.tool === 'move';
+  if (sel && !moving) { // shade the part the selected bend moves, in each piece's colour
+    fctx.globalAlpha = 0.22;
+    for (const p of visPieces(sel)) {
+      const fr = sel.cache[p.key].free, T = p.tris, f = p.flat;
+      fctx.fillStyle = css('--' + p.col); fctx.beginPath();
+      for (let t = 0; t < T.length; t += 3) if (fr[T[t]] && fr[T[t + 1]] && fr[T[t + 2]]) {
+        fctx.moveTo(fx(f[2 * T[t]]), fy(f[2 * T[t] + 1])); fctx.lineTo(fx(f[2 * T[t + 1]]), fy(f[2 * T[t + 1] + 1])); fctx.lineTo(fx(f[2 * T[t + 2]]), fy(f[2 * T[t + 2] + 1]));
+      }
+      fctx.fill();
+    }
+    fctx.globalAlpha = 1;
+  }
+  for (const p of [P.mould2, P.mould1, P.chone]) {
+    if (!state.show[p.key]) continue;
+    const active = moving && state.moving === p.key;
+    ringPath(p.flat, p.nB); fctx.strokeStyle = css(p === P.chone ? '--fg' : '--' + p.col); fctx.lineWidth = active ? 2.6 : 1.3; fctx.stroke();
+  }
+  if (state.show.chone) { fctx.setLineDash([3, 3]); ringPath(stitchFlat, stitchN); fctx.strokeStyle = css('--muted'); fctx.lineWidth = 1; fctx.stroke(); fctx.setLineDash([]); }
+  for (const h of state.hinges) {
+    if (!lineVisible(h)) continue;
+    const ps = visPieces(h), on = h.id === state.selected, col = lineColor(h);
+    const lo = Math.min(...ps.map(p => h.cache[p.key].lo)), hi = Math.max(...ps.map(p => h.cache[p.key].hi));
+    fctx.globalAlpha = moving ? 0.5 : 1;
+    fctx.strokeStyle = col; fctx.lineWidth = on ? 3 : 1.5;
+    fctx.beginPath(); fctx.moveTo(fx(h.a[0] + h.ux * lo), fy(h.a[1] + h.uy * lo)); fctx.lineTo(fx(h.a[0] + h.ux * hi), fy(h.a[1] + h.uy * hi)); fctx.stroke();
+    // little arrow toward the side that moves
+    const mx = (h.a[0] + h.b[0]) / 2, my = (h.a[1] + h.b[1]) / 2;
+    fctx.beginPath(); fctx.moveTo(fx(mx), fy(my)); fctx.lineTo(fx(mx + h.nx * 0.6), fy(my + h.ny * 0.6)); fctx.stroke();
+    if (on && !moving) for (const pt of [h.a, h.b]) {
+      fctx.fillStyle = col; fctx.strokeStyle = css('--fg'); fctx.lineWidth = 1.5;
+      fctx.beginPath(); fctx.arc(fx(pt[0]), fy(pt[1]), 5, 0, Math.PI * 2); fctx.fill(); fctx.stroke();
+    }
+    fctx.globalAlpha = 1;
+  }
+  if (moving) { // centre the piece turns about
+    const c = centerOf(P[state.moving]), X = fx(c[0]), Y = fy(c[1]);
+    fctx.strokeStyle = css('--fg'); fctx.lineWidth = 1.5; fctx.beginPath();
+    fctx.moveTo(X - 6, Y); fctx.lineTo(X + 6, Y); fctx.moveTo(X, Y - 6); fctx.lineTo(X, Y + 6); fctx.stroke();
+  }
+  if (flatDraft) {
+    const ps = PIECES.filter(p => state.newFor[p.key]);
+    fctx.strokeStyle = ps.length === 1 ? css('--' + ps[0].col) : css('--fg'); fctx.setLineDash([5, 4]); fctx.lineWidth = 2; fctx.beginPath();
+    fctx.moveTo(fx(flatDraft.a[0]), fy(flatDraft.a[1])); fctx.lineTo(fx(flatDraft.b[0]), fy(flatDraft.b[1])); fctx.stroke(); fctx.setLineDash([]);
+  }
+  fctx.fillStyle = css('--muted'); fctx.font = '11px ' + css('--font-mono');
+  fctx.fillText('1" grid', 6, flat.clientHeight - 6);
+}
+let fdrag = null;
+function flatPt(ev) { const r = flat.getBoundingClientRect(); return fromF(ev.clientX - r.left, ev.clientY - r.top); }
+let pendingPose = null;
+function flushPose() {
+  if (!pendingPose) return;
+  setPose(pendingPose.p, pendingPose.pose); pendingPose = null;
+  syncMoveBox(); dirty = colorsDirty = true; drawFlat();
+}
+flat.addEventListener('pointerdown', ev => {
+  const p = flatPt(ev);
+  flat.setPointerCapture(ev.pointerId);
+  if (state.tool === 'move') {
+    const m = P[state.moving], c = centerOf(m);
+    checkpoint();
+    fdrag = { mode: ev.shiftKey || ev.altKey ? 'rotate' : 'move', start: p, pose: { ...m.pose }, a0: Math.atan2(p[1] - c[1], p[0] - c[0]), ck: undoStack.length };
+    flat.style.cursor = 'grabbing';
+    return;
+  }
+  const sel = selH();
+  if (sel) for (const end of ['a', 'b']) if (Math.hypot(sel[end][0] - p[0], sel[end][1] - p[1]) * fs < 12) { checkpoint(); fdrag = { mode: 'end', h: sel, end, ck: undoStack.length }; return; }
+  fdrag = { mode: 'draw', start: p, moved: false };
+});
+flat.addEventListener('pointermove', ev => {
+  if (!fdrag) return;
+  const p = flatPt(ev);
+  if (fdrag.mode === 'move' || fdrag.mode === 'rotate' || fdrag.mode === 'end') fdrag.changed = true;
+  if (fdrag.mode === 'move') {
+    const r2 = v => Math.round(v * 100) / 100;
+    pendingPose = { p: P[state.moving], pose: { ...fdrag.pose, x: r2(fdrag.pose.x + p[0] - fdrag.start[0]), y: r2(fdrag.pose.y + p[1] - fdrag.start[1]) } };
+    return;
+  }
+  if (fdrag.mode === 'rotate') {
+    const c = centerOf(P[state.moving]), a = Math.atan2(p[1] - c[1], p[0] - c[0]);
+    let rot = fdrag.pose.rot + (a - fdrag.a0) / DEG;
+    rot = Math.round(((rot + 540) % 360 - 180) * 2) / 2;
+    pendingPose = { p: P[state.moving], pose: { ...fdrag.pose, rot } };
+    return;
+  }
+  if (fdrag.mode === 'end') { fdrag.h[fdrag.end] = p; updateHingeGeom(fdrag.h); dirty = true; colorsDirty = true; drawFlat(); return; }
+  if (Math.hypot(p[0] - fdrag.start[0], p[1] - fdrag.start[1]) * fs > 8) fdrag.moved = true;
+  if (fdrag.moved) { flatDraft = { a: fdrag.start, b: p }; drawFlat(); }
+});
+flat.addEventListener('pointerup', ev => {
+  if (!fdrag) return;
+  const p = flatPt(ev), d = fdrag; fdrag = null;
+  if (d.mode === 'move' || d.mode === 'rotate') { if (!d.changed) dropCheckpoint(d.ck); flushPose(); flat.style.cursor = 'grab'; save(); return; }
+  if (d.mode === 'end') { if (!d.changed) dropCheckpoint(d.ck); save(); renderBendList(); return; }
+  flatDraft = null;
+  if (d.moved && Math.hypot(p[0] - d.start[0], p[1] - d.start[1]) > 0.5) {
+    checkpoint();
+    const h = addHinge({ name: nextBendName(), a: d.start, b: p, angle: 30, radius: 1.5, flip: false, pieces: { ...state.newFor } });
+    select(h.id); save();
+  } else { // tap: pick the bend that moves this spot, looking first at the pieces new lines go on
+    const pieces = [...PIECES].sort((x, y) => (state.newFor[y.key] ? 1 : 0) - (state.newFor[x.key] ? 1 : 0));
+    let h = null;
+    for (const pc of pieces) {
+      if (!state.show[pc.key] || !pointInRing(pc.flat, pc.nB, p[0], p[1])) continue;
+      h = hingeAtVertex(pc, nearestVertex(pc, p[0], p[1]));
+      if (h) break;
+    }
+    select(h ? h.id : null);
+  }
+  drawFlat();
+});
+
+// ---------------------------------------------------------------- panel wiring
+function select(id) { state.selected = id; colorsDirty = true; dirty = true; syncBendBox(); renderBendList(); drawFlat(); }
+function swatch(p) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = `var(--${p.col})`; s.title = p.label; return s; }
+// A row of Chone / Mould 1 / Mould 2 chips.
+function pieceChips(box, isOn, onClick) {
+  box.textContent = '';
+  for (const p of PIECES) {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.setAttribute('aria-pressed', String(isOn(p)));
+    b.append(swatch(p), p.label);
+    b.addEventListener('click', () => onClick(p));
+    box.appendChild(b);
+  }
+}
+// Bend list, grouped by piece (lines bending several pieces go under "Shared"), sorted by name. Hidden pieces' lines are left out.
+const byName = (x, y) => x.name.localeCompare(y.name, undefined, { numeric: true });
+function renderBendList() {
+  const box = $('bendList'); box.textContent = '';
+  const groups = [
+    ...PIECES.map(p => ({ title: p.label, sw: [p], shown: state.show[p.key], match: h => { const ps = onPieces(h); return ps.length === 1 && ps[0] === p; } })),
+    { title: 'Shared', sw: [], shown: true, match: h => onPieces(h).length > 1 },
+  ];
+  let shown = 0;
+  for (const g of groups) {
+    if (!g.shown) continue;
+    const hs = state.hinges.filter(h => g.match(h) && lineVisible(h)).sort(byName);
+    if (!hs.length) continue;
+    shown += hs.length;
+    const wrap = document.createElement('div'); wrap.className = 'bgroup';
+    const h3 = document.createElement('h3'), cnt = document.createElement('small');
+    cnt.textContent = `· ${hs.length}`;
+    h3.append(...g.sw.map(swatch), g.title, cnt);
+    const row = document.createElement('div'); row.className = 'btns';
+    for (const h of hs) {
+      const b = document.createElement('button');
+      b.className = 'chip' + (h.id === state.selected ? ' sel' : ''); b.setAttribute('aria-pressed', 'true'); b.dataset.id = h.id;
+      const t = document.createElement('span'); t.className = 't'; t.textContent = `${h.name} · ${h.angle}°`;
+      if (g.title === 'Shared') b.append(...onPieces(h).map(swatch));
+      b.append(t);
+      b.addEventListener('click', () => select(h.id));
+      row.appendChild(b);
+    }
+    wrap.append(h3, row); box.appendChild(wrap);
+  }
+  const hidden = state.hinges.length - shown;
+  $('bendCount').textContent = (shown === 1 ? '1 line' : `${shown} lines`) + (hidden ? ` · ${hidden} hidden` : '');
+}
+function syncBendBox() {
+  const h = selH();
+  $('bendBox').hidden = !h;
+  if (!h) return;
+  $('bendName').textContent = h.name;
+  $('angle').value = h.angle; $('angleOut').textContent = `${h.angle}°`;
+  $('radius').value = h.radius; $('radiusOut').textContent = `${(+h.radius).toFixed(2)}"`;
+  const chip = $('bendList').querySelector(`[data-id="${h.id}"] .t`);
+  if (chip) chip.textContent = `${h.name} · ${h.angle}°`;
+  if ($('bendFor').dataset.for !== String(h.id) + JSON.stringify(h.pieces)) {
+    $('bendFor').dataset.for = String(h.id) + JSON.stringify(h.pieces);
+    pieceChips($('bendFor'), p => h.pieces[p.key], p => {
+      const n = { ...h.pieces, [p.key]: !h.pieces[p.key] };
+      if (!Object.values(n).some(Boolean)) return; // a line has to bend something
+      checkpoint(); h.pieces = n; updateHingeGeom(h);
+      colorsDirty = dirty = true; renderBendList(); syncBendBox(); drawFlat(); save();
+    });
+  }
+}
+function selH() { return state.hinges.find(x => x.id === state.selected); }
+
+// Flat-pattern tools
+const NOTES = {
+  draw: 'Drag across the pattern to draw a bend line for the piece(s) picked above. Tap a part to pick the bend that moves it. Drag an end dot to move the selected line. You can also click two points on the 3D glove with <b>Draw on 3D</b>.',
+  move: 'Drag to move the picked piece. <kbd>Shift</kbd>-drag (or the slider) turns it about its centre (+). Only the piece picked above moves. Lines that bend only this piece move with it.',
+};
+function setTool(t) {
+  state.tool = t;
+  $('toolDraw').classList.toggle('on', t === 'draw'); $('toolMove').classList.toggle('on', t === 'move');
+  $('drawOpts').hidden = t !== 'draw'; $('moveOpts').hidden = t !== 'move';
+  $('flatNote').innerHTML = NOTES[t];
+  flat.style.cursor = t === 'move' ? 'grab' : 'crosshair';
+  flat.setAttribute('aria-label', t === 'move' ? 'Flat pattern. Drag to move the picked piece.' : 'Flat pattern. Drag across it to draw a new bend line.');
+  drawFlat();
+}
+$('toolDraw').addEventListener('click', () => setTool('draw'));
+$('toolMove').addEventListener('click', () => setTool('move'));
+function renderNewFor() {
+  pieceChips($('newFor'), p => state.newFor[p.key], p => {
+    const n = { ...state.newFor, [p.key]: !state.newFor[p.key] };
+    if (!Object.values(n).some(Boolean)) return;
+    state.newFor = n; renderNewFor(); save();
+  });
+}
+function setMoving(k) { state.moving = k; renderMoveWhich(); syncMoveBox(); drawFlat(); }
+function renderMoveWhich() { pieceChips($('moveWhich'), p => state.moving === p.key, p => setMoving(p.key)); }
+function syncMoveBox() {
+  const m = P[state.moving], o = m.pose, sg = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  $('rot').value = o.rot; $('rotOut').textContent = `${o.rot.toFixed(1)}°`;
+  $('poseOut').textContent = (o.x || o.y || o.rot)
+    ? `${m.label}: moved ${sg(o.x)}" across, ${sg(o.y)}" along, turned ${o.rot.toFixed(1)}° from the auto-fit position.`
+    : `${m.label} is at its auto-fit position.`;
+}
+function poseChanged() { syncMoveBox(); colorsDirty = dirty = true; drawFlat(); save(); }
+$('rot').addEventListener('input', e => { checkpoint('rot' + state.moving); const m = P[state.moving]; setPose(m, { ...m.pose, rot: +e.target.value }); poseChanged(); });
+$('resetPose').addEventListener('click', () => { checkpoint(); setPose(P[state.moving], { x: 0, y: 0, rot: 0 }); poseChanged(); });
+$('resetPoses').addEventListener('click', () => { checkpoint(); for (const p of [P.mould2, P.mould1, P.chone]) setPose(p, { x: 0, y: 0, rot: 0 }); poseChanged(); });
+
+// Mould sizes
+const MOULD_SIZE = [['m1scale', 'mould1', 'm1size'], ['m2scale', 'mould2', 'm2size']];
+function syncMouldSizes() {
+  for (const [id, key, note] of MOULD_SIZE) {
+    const p = P[key], s = pieceScale(p);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < p.nB; i++) { x0 = Math.min(x0, p.base[2 * i]); x1 = Math.max(x1, p.base[2 * i]); y0 = Math.min(y0, p.base[2 * i + 1]); y1 = Math.max(y1, p.base[2 * i + 1]); }
+    $(id).value = s * 100; $(id + 'Out').textContent = `${(s * 100).toFixed(1)}%`;
+    $(note).textContent = `${((x1 - x0) * s).toFixed(2)}" wide × ${((y1 - y0) * s).toFixed(2)}" long (${((x1 - x0) * s * 2.54).toFixed(1)} × ${((y1 - y0) * s * 2.54).toFixed(1)} cm).`;
+  }
+}
+for (const [id, key] of MOULD_SIZE) $(id).addEventListener('input', e => { checkpoint('size' + key); setPose(P[key], { scale: +e.target.value }); syncMouldSizes(); poseChanged(); });
+// Mould thickness. If the seam-reach target was the full foam stack, it follows the new total.
+const MOULD_THICK = [['m1thick', 'mould1'], ['m2thick', 'mould2']];
+function syncThickness() {
+  for (const [id, key] of MOULD_THICK) { const t = P[key].thick; $(id).value = t; $(id + 'Out').textContent = `${t.toFixed(2)}"`; }
+  const T = foamTotal();
+  $('foamTotalNote').textContent = `Foam stack ${T.toFixed(2)}" (${(T * 25.4).toFixed(0)} mm): Mould 1 ${(P.mould1.thick * 25.4).toFixed(0)} mm on top of Mould 2 ${(P.mould2.thick * 25.4).toFixed(0)} mm.`;
+  $('foamTotalInline').textContent = `${T.toFixed(2)}"`;
+}
+function setThickness(key, t) {
+  const followTarget = Math.abs(state.target - foamTotal()) < 0.01;
+  P[key].thick = t; applyThickness();
+  if (followTarget) { state.target = Math.round(foamTotal() * 100) / 100; $('target').value = state.target; $('targetOut').textContent = `${state.target.toFixed(2)}"`; }
+  syncThickness(); dirty = colorsDirty = true; save();
+}
+for (const [id, key] of MOULD_THICK) $(id).addEventListener('input', e => { checkpoint('thick' + key); setThickness(key, +e.target.value); });
+$('resetThick').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_THICK) setThickness(key, 1); });
+$('resetSizes').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_SIZE) setPose(P[key], { scale: 100 }); syncMouldSizes(); poseChanged(); });
+$('angle').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('angle' + h.id); h.angle = +e.target.value; syncBendBox(); dirty = true; save(); });
+$('radius').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('radius' + h.id); h.radius = +e.target.value; syncBendBox(); dirty = true; save(); });
+$('flip').addEventListener('click', () => { const h = selH(); if (!h) return; checkpoint(); h.flip = !h.flip; updateHingeGeom(h); colorsDirty = dirty = true; drawFlat(); save(); });
+$('del').addEventListener('click', () => { checkpoint(); state.hinges = state.hinges.filter(h => h.id !== state.selected); select(null); dirty = true; save(); });
+$('flatten').addEventListener('click', () => { checkpoint(); state.hinges.forEach(h => h.angle = 0); syncBendBox(); renderBendList(); dirty = true; save(); });
+$('reset').addEventListener('click', () => { checkpoint(); state.hinges = []; presetHinges().forEach(addHinge); select(state.hinges[1].id); dirty = true; save(); });
+
+function bindRange(id, key, fmt, after) {
+  const el = $(id), out = $(id + 'Out');
+  el.value = state[key]; out.textContent = fmt(state[key]);
+  el.addEventListener('input', () => { if (key !== 'opacity') checkpoint('range' + key); state[key] = +el.value; out.textContent = fmt(state[key]); after && after(); dirty = true; save(); });
+}
+bindRange('opacity', 'opacity', v => `${Math.round(v * 100)}%`, applyAppearance);
+bindRange('scale', 'scale', v => `${v}%`, () => { updateFlat(P.chone); colorsDirty = true; drawFlat(); });
+bindRange('drape', 'drape', v => `${v}°`);
+bindRange('edgeR', 'edgeR', v => `${(+v).toFixed(2)}"`);
+bindRange('target', 'target', v => `${(+v).toFixed(2)}"`);
+for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mould2']]) {
+  const b = $(id);
+  b.addEventListener('click', () => {
+    state.show[key] = !state.show[key]; b.setAttribute('aria-pressed', String(state.show[key]));
+    const sel = selH();
+    if (sel && !lineVisible(sel)) select(null); else renderBendList();
+    applyAppearance(); save();
+  });
+}
+
+// ---------------------------------------------------------------- save / load (this browser only)
+const KEY = 'chone-fit-lab-v2';
+let booted = false;
+function snapshot() {
+  return { scale: state.scale, drape: state.drape, edgeR: state.edgeR, target: state.target, opacity: state.opacity, show: { ...state.show },
+    newFor: { ...state.newFor }, thick: { mould1: P.mould1.thick, mould2: P.mould2.thick }, poses: Object.fromEntries(PIECES.map(p => [p.key, { ...p.pose }])),
+    hinges: state.hinges.map(h => ({ name: h.name, a: h.a, b: h.b, angle: h.angle, radius: h.radius, flip: h.flip, pieces: { ...h.pieces } })) };
+}
+function save() {
+  if (!booted) return;
+  try { localStorage.setItem(KEY, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable: fine */ }
+}
+const fin = v => typeof v === 'number' && Number.isFinite(v);
+const pt2 = v => Array.isArray(v) && v.length === 2 && v.every(fin);
+// Put the whole lab into the state described by s (from this browser's storage or a config file). Missing fields fall back to defaults.
+function applyConfig(s) {
+  for (const k of ['scale', 'drape', 'edgeR', 'target', 'opacity']) if (fin(s[k])) state[k] = s[k];
+  Object.assign(state.show, { chone: true, mould1: true, mould2: true }, s.show || {});
+  if (s.newFor && Object.values(s.newFor).some(Boolean)) state.newFor = { chone: false, mould1: false, mould2: false, ...s.newFor };
+  for (const k of ['mould1', 'mould2']) { const t = s.thick?.[k]; P[k].thick = fin(t) && t > 0 ? t : 1; }
+  for (const p of PIECES) {
+    const o = s.poses?.[p.key];
+    p.pose = o && [o.x, o.y, o.rot].every(fin) ? { x: o.x, y: o.y, rot: o.rot, ...(fin(o.scale) && p.key !== 'chone' ? { scale: o.scale } : {}) } : { x: 0, y: 0, rot: 0 };
+  }
+  for (const [id, key] of [['opacity', 'opacity'], ['scale', 'scale'], ['drape', 'drape'], ['edgeR', 'edgeR'], ['target', 'target']]) { $(id).value = state[key]; $(id).dispatchEvent(new Event('input')); }
+  for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mould2']]) $(id).setAttribute('aria-pressed', String(state.show[key]));
+  applyThickness();
+  for (const p of [P.mould2, P.mould1, P.chone]) updateFlat(p);
+  state.hinges = []; state.selected = null; hingeSeq = 0;
+  const hs = Array.isArray(s.hinges) ? s.hinges : presetHinges();
+  for (const h of hs) {
+    if (!h || !pt2(h.a) || !pt2(h.b)) continue;
+    const pieces = h.pieces && PIECES.some(p => h.pieces[p.key]) ? { chone: !!h.pieces.chone, mould1: !!h.pieces.mould1, mould2: !!h.pieces.mould2 } : ALL();
+    addHinge({ name: String(h.name || nextBendName()), a: h.a, b: h.b, angle: fin(h.angle) ? h.angle : 0, radius: fin(h.radius) ? h.radius : 1.5, flip: !!h.flip, pieces });
+  }
+  renderNewFor(); renderMoveWhich(); syncMoveBox(); syncMouldSizes(); syncThickness();
+  select(state.hinges.length > 1 ? state.hinges[1].id : state.hinges[0]?.id ?? null);
+  applyAppearance();
+  dirty = colorsDirty = true;
+}
+
+// Undo: before each change, a snapshot of the whole lab is pushed. Repeated input from one control
+// (a slider drag, typing) within a second counts as one step. View-only settings (Show, see-through,
+// "New lines bend") aren't part of undo, and undo leaves them as they are now.
+const undoStack = [];
+let lastCk = { key: null, t: 0 }, restoring = false;
+function checkpoint(key = '') {
+  if (restoring || !booted) return;
+  const now = performance.now();
+  if (key && key === lastCk.key && now - lastCk.t < 1000) { lastCk.t = now; return; }
+  lastCk = { key, t: now };
+  undoStack.push({ cfg: JSON.parse(JSON.stringify(snapshot())), sel: state.hinges.findIndex(h => h.id === state.selected) });
+  if (undoStack.length > 100) undoStack.shift();
+  syncUndo();
+}
+function dropCheckpoint(n) { if (undoStack.length === n) { undoStack.pop(); lastCk = { key: null, t: 0 }; syncUndo(); } }
+function syncUndo() {
+  $('undo').disabled = !undoStack.length;
+  $('undo').title = undoStack.length ? `Undo (${undoStack.length} step${undoStack.length > 1 ? 's' : ''}) · ⌘Z / Ctrl+Z` : 'Nothing to undo';
+}
+function undo() {
+  const u = undoStack.pop(); if (!u) return;
+  if (drag || fdrag) return void undoStack.push(u); // not in the middle of a drag
+  restoring = true;
+  try { applyConfig({ ...u.cfg, show: { ...state.show }, opacity: state.opacity, newFor: { ...state.newFor } }); }
+  finally { restoring = false; }
+  lastCk = { key: null, t: 0 };
+  const h = state.hinges[u.sel];
+  select(h && lineVisible(h) ? h.id : null);
+  save(); syncUndo();
+}
+$('undo').addEventListener('click', undo);
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+    const t = e.target; if (t && (t.isContentEditable || (t.tagName === 'INPUT' && t.type === 'text') || t.tagName === 'TEXTAREA')) return;
+    e.preventDefault(); undo();
+  }
+});
+
+// Config files: Save writes JSON through the browser's save dialog (Chrome/Edge remember the folder for next time), or downloads it.
+let cfgHandle = null;
+const cfgStatus = (msg, bad) => { $('cfgStatus').textContent = msg; $('cfgStatus').classList.toggle('err', !!bad); };
+$('cfgSave').addEventListener('click', async () => {
+  const text = JSON.stringify({ app: 'chone-fit-lab', version: 1, savedAt: new Date().toISOString(), ...snapshot() }, null, 2);
+  const name = cfgHandle?.name || 'chone-fit-config.json';
+  if (window.showSaveFilePicker) {
+    try {
+      const fh = await window.showSaveFilePicker({ suggestedName: name, ...(cfgHandle ? { startIn: cfgHandle } : {}),
+        types: [{ description: 'Chone Fit Lab config', accept: { 'application/json': ['.json'] } }] });
+      const w = await fh.createWritable(); await w.write(text); await w.close();
+      cfgHandle = fh; cfgStatus(`Saved ${fh.name} (${state.hinges.length} bend lines).`); return;
+    } catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to a download */ }
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })), link = document.createElement('a');
+  link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  cfgStatus(`Downloaded ${name}. Move it into the viewer folder to keep it with the project.`);
+});
+$('cfgLoad').addEventListener('click', () => $('cfgFile').click());
+$('cfgFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const s = JSON.parse(await file.text());
+    if (!s || typeof s !== 'object' || !Array.isArray(s.hinges)) throw new Error('not a Chone Fit Lab config (no bend lines)');
+    checkpoint(); applyConfig(s); save();
+    cfgStatus(`Loaded ${file.name}${s.savedAt ? `, saved ${new Date(s.savedAt).toLocaleString()}` : ''}. ${state.hinges.length} bend lines.`);
+  } catch (err) { cfgStatus(`Couldn't load ${file.name}: ${err.message}`, true); }
+});
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.hinges)) return s; } catch (e) { }
+  return null;
+}
+
+// ---------------------------------------------------------------- boot
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+new ResizeObserver(sizeFlat).observe(flat);
+
+applyConfig(load() || {});
+setTool('draw');
+setView('persp');
+resize();
+booted = true;
+
+function frame() {
+  flushPose(); // piece drags are applied once per frame
+  if (dirty) { refresh(); dirty = false; colorsDirty = true; }
+  if (colorsDirty) { for (const p of PIECES) colorPiece(p); updateHingeLines(); colorsDirty = false; }
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__lab = { state, P, refresh };
+</script>

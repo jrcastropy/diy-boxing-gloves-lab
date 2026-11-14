@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+.envrc
+.direnv/
+*.pem
+*.key
+*.p12
+*.pfx
+*.secret
+credentials*.json
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Local Claude Code settings
+.claude/
+CLAUDE.local.md
+settings.local.json
