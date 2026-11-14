@@ -81,6 +81,13 @@ Requested 2026-11-14. Work through these one at a time. Tick each box when it's 
 - [ ] **A13. Type exact values** — built, waiting for your browser test
   - A number box beside every slider. Typed values aren't rounded to the slider's step.
 
+- [ ] **A14. Bend radius down to 0** — built, waiting for your browser test
+  - Radius 0 is a sharp crease on the crease face; the outer layers still go round it.
+
+- [ ] **A15. Stop pieces overlapping** — built, waiting for your browser test
+  - A checkbox under Bend lines. With it on, Bend angle, Rotate and Bend radius stop just before shown pieces would overlap.
+  - Hidden pieces still block, with an alert: "You've bumped into hidden Mould 2." Where pieces already overlap, a change may not make it deeper.
+
 ## After each item
 
 - [ ] Update `docs/chone-fit-lab.md` to match.

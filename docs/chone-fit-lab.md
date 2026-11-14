@@ -191,6 +191,20 @@ final position = B_nearest( … B_farthest(starting position) )
 
 Each bend is worked out on the flat pattern, so the farthest one (for example, the fingertips) is applied while everything is still in place. The nearer bends (the knuckles) then carry the already-bent part along with them. Each bend moves a point as a solid motion, so the bends combine correctly. This works when lines are nested, like the knuckles then the fingertips, or when they cover separate areas, like the thumb and the knuckles.
 
+#### Stop pieces overlapping
+
+With **Stop pieces overlapping** ticked (under Bend lines), the Bend angle, Rotate and Bend radius controls of the selected line (and dragging a bend in the 3D view) stop just before the change would push one piece into another. The note under the checkbox says where it stopped and which pieces met.
+
+- **What's checked:** the bent 3D meshes of all three pieces, pair by pair (Chone/Mould 1, Chone/Mould 2, Mould 1/Mould 2). Two pieces overlap when any triangle of one crosses a triangle of the other. A grid of buckets keeps that fast. Only pairs that include a piece the line bends are checked; the others haven't moved.
+- **Hidden pieces still count.** They're still there, just not drawn, so you can't push a piece through one by hiding it. When a hidden piece is what stops you, a red alert pops up over the 3D view ("You've bumped into hidden Mould 2.") for 3 seconds, and the note names it as hidden.
+- **A small margin.** For the check, each mould's top and bottom faces are pulled in by 0.05". The moulds are meshed separately, so their flat triangles bend slightly differently and would otherwise "touch" falsely where they're stacked. So the stop comes about 0.1" before the surfaces really meet.
+- **Stepping, then narrowing down.** A change is walked through in steps of 2° (0.1" for radius), so a thin Chone can't jump straight through a mould between two slider positions. At the first overlap, it halves the gap 7 times and keeps the last clear value, rounded back toward where you started (0.1°, 0.01").
+- **Overlap that's already there.** Where pieces already overlap, the depth is measured: the faces are pulled in further (0.1", 0.15", 0.2", 0.3", 0.4", but never past half a mould's thickness) until they come apart. A change may not make it deeper than that. If they never come apart (deep overlap, or a thin mould), the number of crossing triangles at the deepest level is held instead (plus 5% slack for mesh noise). Moving a bend or Rotate back toward 0 is always allowed for a pair that already overlaps, so you can always ease it apart. It's measured once at the start of each slider gesture.
+- **Red marks.** With the box ticked, every triangle that crosses another piece is tinted red in the 3D view, so you can see where existing overlap is.
+- **Not checked:** a piece passing into itself (folding past 180°), and changes other than angle, Rotate and radius (moving, resizing, thickness, Flip, adding lines). After those, the note just reports any overlap.
+
+**Bends on all layers at once can overlap a little at the far line.** For example, knuckles at 70° plus fingertips on all three pieces: Chone/Mould 1 about 0.2", Mould 1/Mould 2 about 0.1". Each layer keeps its own length, so bending the knuckles makes the outer layers slide back against the inner ones, by about the angle × the gap between layers (70° × 1" ≈ 1.2"). Each layer then curls at its own fingertip line, and those lines no longer line up, so the curls cross. Real foam would squash or shift instead. With the box ticked, the stop catches this as you bend.
+
 ### Seam reach
 
 This is the number the page is built for. For each point on the Chone stitch line:
@@ -243,19 +257,14 @@ Lines given only the moved piece move, turn and scale with it, so they stay in t
 - **Show:** hiding a piece hides it in 3D and in the flat pattern panel (its outline, and the stitch line for the Chone). It also hides its bend lines in 3D, in the flat panel and in the bend list, and they can't be picked by tapping. A line shared with a piece that's still shown stays visible and is drawn on that piece. If the selected line gets hidden, nothing is selected. The bend count says how many lines are hidden. A hidden piece is also greyed out and can't be clicked in every piece picker. In **New lines bend**, new lines go only on pieces that are picked and shown. If all the picked pieces are hidden, drawing in the flat panel does nothing, **Draw on 3D** is switched off, and a note says why. In a line's **Bends**, you can't add a hidden piece to the line or take it off. In **Moving**, a hidden piece can't be moved. If the piece being moved gets hidden, the first shown piece is picked instead.
 - **Bend list:** lines are grouped under Chone, Mould 1, Mould 2 and Shared (lines that bend more than one piece, shown with a colour dot for each of their pieces). Each group is sorted by name in number order (Bend 2 before Bend 10). New lines are named one more than the highest "Bend N" already there, so names never repeat. (They used to come from a counter that reset on load, which made duplicates.)
 - **Undo:** the **↶ Undo** button at the top of the 3D view, or ⌘Z / Ctrl+Z, steps back through changes. These are: adding, deleting, flipping or flattening lines; dragging a line's ends; bending in 3D; changing a line's pieces, angle or radius; moving, turning, resizing or thickening pieces; the Chone size, edge-wrap and target sliders; "Reset…" buttons; and loading a config. Before each change, the page pushes a full snapshot (up to 100). Continuous input from one control within a second, like dragging a slider, is one step. A click that doesn't actually change anything doesn't add a step. Undo leaves the view settings as they are now: Show, see-through and "New lines bend". The undo history lives only in the open page and is cleared when it reloads.
+- **See-through:** under Show, each piece has its own see-through slider (15–100%): the Chone starts at 55%, the moulds at 100% (solid). They're view settings: saved with the config, but undo leaves them as they are.
 - **Number boxes:** every slider in the panel has a box beside it for typing an exact value, with its unit (°, ", %; see-through is in %). The box and the slider follow each other both ways. A typed value applies when you press Enter or click away, and Esc cancels. It's kept inside the slider's range, but it isn't rounded to the slider's step. A 1.37" thickness stays 1.37" instead of becoming 1.35". To allow that, the slider accepts any value until you drag or key it again. The piece Rotation slider now goes from −180° to +180° (it was ±45°), to match what Shift-drag can do.
 - **Config files:** **Save config…** writes everything as JSON: the bend lines and their pieces, piece positions, mould sizes and thicknesses, the "New lines bend" choice, and all sliders. Configs belong in `viewer/config/`, which is git-ignored so they stay on your machine. A web page can't open a dialog at a fixed path, so in Chrome and Edge both the save and the open dialog use one remembered-folder id (`chone-fit-config`). You browse to `viewer/config/` the first time, and after that both dialogs open there by themselves, even after a reload. The folder is remembered for each origin, such as `localhost:8000`. Where those dialogs aren't available (Safari, Firefox, some embedded pages), Save downloads `chone-fit-config.json` for you to move into `viewer/config/`, and Load uses a plain file picker. **Load config…** reads a file back. The page checks it first: bad lines are skipped, and missing fields get their defaults. The browser's own saved copy and config files go through the same `applyConfig()`, so they behave the same. A page can't write into a folder without asking you first, which is why there's a dialog.
 - **Redrawing:** changes mark the model as out of date, and the next animation frame recomputes everything. The amount of work is small: about 13,000 vertices times a few bend lines.
 
-### Starting bends
+### Starting state
 
-| Name | Line | Angle | Radius |
-| --- | --- | --- | --- |
-| Thumb | From the thumb notch tip toward (−2.9, 0.6) | 55° | 1.5" |
-| Knuckles | y = 9.6, from x −5 to 3 | 70° | 1.5" |
-| Fingertips | y = 12.4, from x −4.5 to 3 | 55° | 1.2" |
-
-These are reasonable starting points, not measured from a real glove. Adjust them to match how your foam actually sits.
+There are no starting lines: the pieces start flat. A new line also starts flat (angle 0°, Rotate 0°, radius 1.5"), so drawing one doesn't change the model until you bend it. **Delete all lines** (red, under the bend list) removes every line; Undo brings them back.
 
 ### Look and libraries
 
@@ -271,7 +280,8 @@ These are reasonable starting points, not measured from a real glove. Adjust the
 - **Foam bends around its middle.** Each slab keeps its length at mid-thickness and stretches or squashes evenly above and below. Real foam compresses unevenly.
 - **Edge wrap uses the nearest edge point.** At inward corners (the thumb notch), the nearest point on the foam outline can jump, so the wrapped leather may kink there.
 - **The moulds start at the even-gap fit.** If the foam actually sits differently under the Chone, move it with the Move pieces tool.
-- **Bending pieces separately can make them pass through each other.** Nothing stops a bent mould from passing through an unbent Chone. Pieces don't collide.
+- **Bending pieces separately can make them pass through each other** unless **Stop pieces overlapping** is ticked, and even then only the bend controls are stopped (see above).
+- **Layers slide at the far bends.** After a nearer bend, each layer's later bend lines sit at different places, so curls at the fingertips cross a little.
 - **Not included:** the Chone Cuff, the Cuff Mould and the Front Palm.
 - **Untested in a browser here.** It was published after only a syntax check, because the headless-browser screenshot was blocked in this setup.
 

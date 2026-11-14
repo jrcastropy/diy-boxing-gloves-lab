@@ -45,6 +45,8 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .hud > * { pointer-events: auto; }
 .hint { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: 12px; right: 12px; color: var(--muted); font-size: 12px; pointer-events: none; text-wrap: balance; }
 .hint kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--panel); }
+.toast { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); max-width: calc(100% - 32px); background: var(--bad); color: #fff;
+  border-radius: 8px; padding: 10px 14px; font: 600 13.5px var(--font-body); box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; z-index: 5; }
 .reach { position: absolute; right: 12px; top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 170px; max-width: 230px; }
 .reach .big { font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
 .reach .lbl { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -106,6 +108,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 .err { color: var(--bad); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
 @media (max-width: 820px) {
   html, body { height: auto; }
   .app { grid-template-columns: minmax(0, 1fr); height: auto; }
@@ -128,6 +132,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <button class="btn" data-view="front">Fingertips</button>
       <button class="btn" data-view="palm">Palm side</button>
     </div>
+    <div class="toast" id="toast" role="alert" hidden></div>
     <div class="reach" id="reach">
       <div class="lbl">Shortest seam reach</div>
       <div class="big" id="reachVal">–</div>
@@ -150,6 +155,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <button class="chip" id="lyM2" aria-pressed="true"><span class="sw" style="background:var(--foam2)"></span>Mould 2</button>
       </div>
       <div class="row"><label for="opacity">Chone see-through</label><input id="opacity" type="range" min="0.15" max="1" step="0.05" value="0.55"><output id="opacityOut"></output></div>
+      <div class="row"><label for="opacityM1">Mould 1 see-through</label><input id="opacityM1" type="range" min="0.15" max="1" step="0.05" value="1"><output id="opacityM1Out"></output></div>
+      <div class="row"><label for="opacityM2">Mould 2 see-through</label><input id="opacityM2" type="range" min="0.15" max="1" step="0.05" value="1"><output id="opacityM2Out"></output></div>
     </section>
 
     <section>
@@ -172,6 +179,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
     <section>
       <h2>Bend lines <small id="bendCount"></small></h2>
+      <label class="check"><input type="checkbox" id="noOverlap"> Stop pieces overlapping</label>
+      <p class="note" id="overlapNote" hidden></p>
       <div class="bendgroups" id="bendList"></div>
       <div class="bendbox" id="bendBox">
         <div class="name" id="bendName"></div>
@@ -188,7 +197,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <div class="btns">
         <button class="btn" id="draw3d">Draw on 3D</button>
         <button class="btn" id="flatten">Flatten all</button>
-        <button class="btn reset" id="reset">Reset to starting bends</button>
+        <button class="btn danger" id="reset">Delete all lines</button>
       </div>
     </section>
 
@@ -313,22 +322,14 @@ function pointInRing(f, n, x, y) {
 
 // ---------------------------------------------------------------- state
 const state = {
-  scale: 100, drape: 0, edgeR: 0, target: 2, opacity: 0.55,
+  scale: 100, drape: 0, edgeR: 0, target: 2, opacity: 0.55, opacityM1: 1, opacityM2: 1,
   show: { chone: true, mould1: true, mould2: true },
   hinges: [], selected: null,
   tool: 'draw', newFor: { chone: true, mould1: false, mould2: false }, moving: 'chone',
+  noOverlap: false,
 };
 const ALL = () => ({ chone: true, mould1: true, mould2: true });
 let hingeSeq = 0;
-function presetHinges() {
-  const tip = D.landmarks.thumbNotch, tb = [-2.9, 0.6];
-  const dx = tb[0] - tip[0], dy = tb[1] - tip[1], L = Math.hypot(dx, dy);
-  return [
-    { name: 'Thumb', a: [tip[0] + dx / L * 0.06, tip[1] + dy / L * 0.06], b: tb, angle: 55, radius: 1.5, flip: false, pieces: ALL() },
-    { name: 'Knuckles', a: [-5, 9.6], b: [3, 9.6], angle: 70, radius: 1.5, flip: false, pieces: ALL() },
-    { name: 'Fingertips', a: [-4.5, 12.4], b: [3, 12.4], angle: 55, radius: 1.2, flip: false, pieces: ALL() },
-  ];
-}
 function addHinge(h) {
   const hh = { id: ++hingeSeq, cache: {}, dist: {}, ...h, pieces: { ...(h.pieces || ALL()) } };
   state.hinges.push(hh); updateHingeGeom(hh); return hh;
@@ -608,29 +609,34 @@ function choneLocal(i, out) {
     out[0] = qx + nx * hzn; out[1] = qy + ny * hzn; out[2] = ez - t * Math.sin(psi);
   }
 }
-function deformPiece(p, order) { // order: only the bends that act on this piece
-  const pos = p.mesh.geometry.attributes.position.array, src = p.src, zl = p.zl;
+// Bent positions of one piece, in the mesh's vertex layout. inset pulls a slab's faces in (used by the overlap check).
+function deformInto(p, order, pos, inset = 0) { // order: only the bends that act on this piece
+  const src = p.src, zl = p.zl;
   for (let r = 0; r < src.length; r++) {
     const i = src[r];
-    if (p.slab) { tmp[0] = p.flat[2 * i]; tmp[1] = p.flat[2 * i + 1]; tmp[2] = zl[r] ? p.z1 : p.z0; } else choneLocal(i, tmp);
+    if (p.slab) { tmp[0] = p.flat[2 * i]; tmp[1] = p.flat[2 * i + 1]; tmp[2] = zl[r] ? p.z1 - inset : p.z0 + inset; } else choneLocal(i, tmp);
     for (let k = order.length - 1; k >= 0; k--) {
       const hc = order[k].cache[p.key];
       if (hc.free[i]) bendPoint(tmp, order[k], p, hc.d[i]);
     }
     pos[3 * r] = tmp[0]; pos[3 * r + 1] = tmp[1]; pos[3 * r + 2] = tmp[2];
   }
+}
+function deformPiece(p, order) {
   const g = p.mesh.geometry;
+  deformInto(p, order, g.attributes.position.array);
   g.attributes.position.needsUpdate = true; g.computeVertexNormals(); g.computeBoundingSphere();
 }
 const cTmp = new THREE.Color(), cWhite = new THREE.Color(0xffffff);
 function colorPiece(p) {
   const col = p.mesh.geometry.attributes.color.array, base = new THREE.Color(css('--' + p.baseColor));
   const sel = state.hinges.find(h => h.id === state.selected), hov = state.hinges.find(h => h.id === hover.id);
-  const fs = sel?.cache[p.key]?.free ?? null, fh = hov?.cache[p.key]?.free ?? null;
+  const fs = sel?.cache[p.key]?.free ?? null, fh = hov?.cache[p.key]?.free ?? null, ov = overlapRows[p.key], red = ov && new THREE.Color(css('--bad'));
   for (let r = 0; r < p.src.length; r++) {
     const i = p.src[r];
     cTmp.copy(base);
     if (fs && fs[i]) cTmp.lerp(cWhite, 0.32); else if (fh && fh[i]) cTmp.lerp(cWhite, 0.18);
+    if (ov && ov[r]) cTmp.lerp(red, 0.85); // crosses another piece
     col[3 * r] = cTmp.r; col[3 * r + 1] = cTmp.g; col[3 * r + 2] = cTmp.b;
   }
   p.mesh.geometry.attributes.color.needsUpdate = true;
@@ -718,14 +724,214 @@ let dirty = true, colorsDirty = true;
 function refresh() {
   for (const p of PIECES) deformPiece(p, orderFor(p));
   updateEdge(); updateStitch(); updateHingeLines();
+  scheduleOverlapCheck();
+}
+
+// ---------------------------------------------------------------- no-overlap
+// With "Stop pieces overlapping" on, the Bend angle, Rotate and Bend radius controls stop just before the
+// change would push one piece into another. Hidden pieces count too: they're still there, just not drawn,
+// and the note names them as hidden.
+// The check works on the bent meshes: a crossing between any triangle of one piece and any triangle of
+// another. Slab faces are pulled in by 0.05" (SQUISH[0]: the meshes differ, so a thinner gap gives false hits) so layers stacked face to face don't count as touching.
+// A piece passing into itself (folding past 180°) isn't checked.
+// Where pieces already overlap, the depth is measured by pulling the slab faces in further (SQUISH, inches):
+// the first level at which they come apart. A change may not push them deeper than that.
+const SQUISH = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4], COL_CELL = 0.35;
+const colBuf = {};
+function colGeom(p, lv = 0) { // bent positions + triangle boxes for the check
+  const ck = p.key + lv;
+  let b = colBuf[ck];
+  if (!b) {
+    const idx = p.mesh.geometry.index.array;
+    b = colBuf[ck] = { p, idx, pos: new Float32Array(p.src.length * 3), box: new Float32Array(idx.length * 2), nT: idx.length / 3 };
+  }
+  deformInto(p, orderFor(p), b.pos, p.slab ? Math.min(SQUISH[lv], p.thick / 2 - 0.01) : 0);
+  const { idx, pos, box } = b;
+  for (let t = 0; t < b.nT; t++) {
+    const a = 3 * idx[3 * t], c = 3 * idx[3 * t + 1], e = 3 * idx[3 * t + 2], o = 6 * t;
+    for (let k = 0; k < 3; k++) {
+      const x = pos[a + k], y = pos[c + k], z = pos[e + k];
+      box[o + k] = Math.min(x, y, z); box[o + 3 + k] = Math.max(x, y, z);
+    }
+  }
+  return b;
+}
+const cellOf = v => Math.floor(v / COL_CELL) + 1024;
+function colHash(b) { // triangle buckets on a 3D grid
+  const m = new Map(), box = b.box;
+  for (let t = 0; t < b.nT; t++) {
+    const o = 6 * t, x0 = cellOf(box[o]), x1 = cellOf(box[o + 3]), y0 = cellOf(box[o + 1]), y1 = cellOf(box[o + 4]), z0 = cellOf(box[o + 2]), z1 = cellOf(box[o + 5]);
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+      const k = (x * 2048 + y) * 2048 + z, l = m.get(k);
+      if (l) l.push(t); else m.set(k, [t]);
+    }
+  }
+  return m;
+}
+// Does segment PQ cross triangle ABC? (Möller–Trumbore, t in [0, 1])
+function segTri(P, p, q, T, a, b, c) {
+  const px = P[p], py = P[p + 1], pz = P[p + 2], dx = P[q] - px, dy = P[q + 1] - py, dz = P[q + 2] - pz;
+  const ax = T[a], ay = T[a + 1], az = T[a + 2];
+  const e1x = T[b] - ax, e1y = T[b + 1] - ay, e1z = T[b + 2] - az, e2x = T[c] - ax, e2y = T[c + 1] - ay, e2z = T[c + 2] - az;
+  const hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x;
+  const det = e1x * hx + e1y * hy + e1z * hz;
+  if (Math.abs(det) < 1e-12) return false; // parallel: coplanar touching doesn't count
+  const f = 1 / det, sx = px - ax, sy = py - ay, sz = pz - az;
+  const u = f * (sx * hx + sy * hy + sz * hz); if (u < 0 || u > 1) return false;
+  const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+  const v = f * (dx * qx + dy * qy + dz * qz); if (v < 0 || u + v > 1) return false;
+  const t = f * (e2x * qx + e2y * qy + e2z * qz);
+  return t >= 0 && t <= 1;
+}
+function triTri(A, ia, B, ib) {
+  const a0 = 3 * A.idx[3 * ia], a1 = 3 * A.idx[3 * ia + 1], a2 = 3 * A.idx[3 * ia + 2];
+  const b0 = 3 * B.idx[3 * ib], b1 = 3 * B.idx[3 * ib + 1], b2 = 3 * B.idx[3 * ib + 2];
+  const P = A.pos, Q = B.pos;
+  return segTri(P, a0, a1, Q, b0, b1, b2) || segTri(P, a1, a2, Q, b0, b1, b2) || segTri(P, a2, a0, Q, b0, b1, b2)
+      || segTri(Q, b0, b1, P, a0, a1, a2) || segTri(Q, b1, b2, P, a0, a1, a2) || segTri(Q, b2, b0, P, a0, a1, a2);
+}
+// Number of crossing triangle pairs between two pieces. Stops counting past limit, unless marks
+// ({ pieceKey: Uint8Array per triangle }) is given: then it counts them all and flags each crossing triangle.
+function piecesCross(A, B, limit = 0, marks = null) {
+  let n = 0;
+  if (A.nT > B.nT) [A, B] = [B, A];
+  const mA = marks?.[A.p.key], mB = marks?.[B.p.key];
+  const m = colHash(B), ba = A.box, bb = B.box;
+  for (let t = 0; t < A.nT; t++) {
+    const o = 6 * t, x0 = cellOf(ba[o]), x1 = cellOf(ba[o + 3]), y0 = cellOf(ba[o + 1]), y1 = cellOf(ba[o + 4]), z0 = cellOf(ba[o + 2]), z1 = cellOf(ba[o + 5]);
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+      const l = m.get((x * 2048 + y) * 2048 + z); if (!l) continue;
+      for (const u of l) {
+        const q = 6 * u;
+        if (bb[q] > ba[o + 3] || bb[q + 3] < ba[o] || bb[q + 1] > ba[o + 4] || bb[q + 4] < ba[o + 1] || bb[q + 2] > ba[o + 5] || bb[q + 5] < ba[o + 2]) continue;
+        if (!triTri(A, t, B, u)) continue;
+        n++;
+        if (marks) { mA[t] = 1; mB[u] = 1; } else if (n > limit) return n;
+      }
+    }
+  }
+  return n;
+}
+// Pairs of pieces to check (hidden ones included). only: just pairs with at least one of these pieces (the others haven't moved).
+function piecePairs(only) {
+  const shown = PIECES, out = [];
+  for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++)
+    if (!only || only.includes(shown[i]) || only.includes(shown[j])) out.push([shown[i], shown[j]]);
+  return out;
+}
+// Pairs that overlap deeper than allowed. base: from overlapDepths; none = must not touch.
+// A pair overlapping deeper than the deepest level is held to its count of crossing triangles there instead.
+// easing: the change moves a bend or Rotate back toward 0, which is always allowed for pairs already overlapping.
+function overlaps(only = null, base = null, easing = false) {
+  const g = {}, out = [];
+  for (const [p, q] of piecePairs(only)) {
+    if (easing && base?.[p.key + q.key]) continue;
+    const pk = p.key + q.key, deep = (base?.[pk] ?? 0) >= SQUISH.length, lv = deep ? SQUISH.length - 1 : base?.[pk] ?? 0;
+    const allow = deep ? base[pk + '#'] + Math.max(2, Math.ceil(base[pk + '#'] * 0.05)) : 0; // a little slack for mesh noise
+    const A = g[p.key + lv] ??= colGeom(p, lv), B = g[q.key + lv] ??= colGeom(q, lv);
+    if (piecesCross(A, B, allow) > allow) out.push([p, q]);
+  }
+  return out;
+}
+function overlapDepths(only = null) { // per pair: the first SQUISH level at which it comes apart (+ '#': crossings if never)
+  const g = {}, out = {};
+  for (const [p, q] of piecePairs(only)) {
+    let lv = 0;
+    for (; lv < SQUISH.length; lv++) if (!piecesCross(g[p.key + lv] ??= colGeom(p, lv), g[q.key + lv] ??= colGeom(q, lv))) break;
+    out[p.key + q.key] = lv;
+    if (lv === SQUISH.length) out[p.key + q.key + '#'] = piecesCross(g[p.key + (lv - 1)], g[q.key + (lv - 1)], Infinity);
+  }
+  return out;
+}
+// Mesh rows (vertices) of triangles that cross another piece, per piece key, for the red marks in 3D.
+let overlapRows = {};
+function markOverlaps() {
+  const marks = {}, g = {};
+  for (const p of PIECES) marks[p.key] = new Uint8Array(p.mesh.geometry.index.count / 3);
+  for (const [p, q] of piecePairs()) piecesCross(g[p.key] ??= colGeom(p, 0), g[q.key] ??= colGeom(q, 0), Infinity, marks);
+  overlapRows = {};
+  for (const p of PIECES) {
+    const m = marks[p.key]; if (!m.some(Boolean)) continue;
+    const rows = new Uint8Array(p.src.length), idx = p.mesh.geometry.index.array;
+    for (let t = 0; t < m.length; t++) if (m[t]) { rows[idx[3 * t]] = rows[idx[3 * t + 1]] = rows[idx[3 * t + 2]] = 1; }
+    overlapRows[p.key] = rows;
+  }
+}
+const pieceName = p => p.label + (state.show[p.key] ? '' : ' (hidden)');
+const pairText = ps => ps.map(([p, q]) => `${pieceName(p)} and ${pieceName(q)}`).join(', ');
+function overlapNote(msg, bad) { const n = $('overlapNote'); n.hidden = !msg; n.innerHTML = msg || ''; n.classList.toggle('err', !!bad); }
+// Set h[key] to v, but with the guard on stop at the last value before pieces cross (or, where they already
+// overlap, before the overlap grows). Steps through the change (so a thin piece can't jump right through another)
+// and then narrows down the stop. The overlap already there is measured once per slider gesture.
+const GUARD_STEP = { angle: 2, twist: 2, radius: 0.1 }, GUARD_ROUND = { angle: 0.1, twist: 0.1, radius: 0.01 };
+let overlapTimer = 0, guardNote = '', guardBase = { k: null, t: 0, depth: null };
+function guardedSet(h, key, v) {
+  const old = +(h[key] || 0);
+  try { return guardCore(h, key, v, old); }
+  catch (e) { // never leave a half-checked value behind
+    console.error('[overlap] check failed', e);
+    h[key] = old; overlapNote(`The overlap check failed (${e.message}), so ${key} stayed at ${old}. Details are in the browser console.`, true);
+    return old;
+  }
+}
+function guardCore(h, key, v, old) {
+  h[key] = v;
+  if (!state.noOverlap || v === old) return v;
+  const only = onPieces(h);
+  h[key] = old;
+  const gk = key + h.id, now = performance.now();
+  if (gk !== guardBase.k || now - guardBase.t > 1000) guardBase = { k: gk, depth: overlapDepths(only) };
+  guardBase.t = now;
+  const base = guardBase.depth, easing = key !== 'radius' && Math.abs(v) < Math.abs(old);
+  const n = Math.max(1, Math.ceil(Math.abs(v - old) / GUARD_STEP[key]));
+  let ok = old, bad = null, hit = null;
+  for (let i = 1; i <= n; i++) {
+    h[key] = i === n ? v : old + (v - old) * i / n;
+    const o = overlaps(only, base, easing);
+    if (o.length) { bad = h[key]; hit = o; break; }
+    ok = h[key];
+  }
+  if (bad === null) { h[key] = v; guardNote = ''; return v; }
+  for (let k = 0; k < 7; k++) { // narrow down between the last clear value and the first crossing one
+    h[key] = (ok + bad) / 2;
+    const o = overlaps(only, base, easing);
+    if (o.length) { bad = h[key]; hit = o; } else ok = h[key];
+  }
+  const r = GUARD_ROUND[key], st = +(old < v ? Math.floor(ok / r) * r : Math.ceil(ok / r) * r).toFixed(2); // round back toward where it started
+  h[key] = (old < v ? st > old : st < old) ? st : old;
+  const unit = key === 'radius' ? '"' : '°', what = { angle: 'Bend angle', twist: 'Rotate', radius: 'Bend radius' }[key];
+  const hid = [...new Set(hit.flat().filter(p => !state.show[p.key]))];
+  if (hid.length) toast(`You've bumped into hidden ${hid.map(p => p.label).join(' and ')}.`);
+  guardNote = `${what} stopped at ${h[key]}${unit}: ${pairText(hit)} would overlap${hit.some(([p, q]) => base[p.key + q.key]) ? ' more' : ''}.`;
+  return h[key];
+}
+// A short alert over the 3D view (bumping into a hidden piece). Stays 3 s after the last bump.
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3000);
+}
+// After any other change (moving, thickness, showing a piece…), say if shown pieces now cross.
+function scheduleOverlapCheck() {
+  clearTimeout(overlapTimer);
+  if (!state.noOverlap) { overlapNote(''); if (Object.keys(overlapRows).length) { overlapRows = {}; colorsDirty = true; } return; }
+  overlapTimer = setTimeout(() => {
+    markOverlaps(); colorsDirty = true;
+    const dp = overlapDepths(), o = piecePairs().filter(([p, q]) => dp[p.key + q.key]);
+    const depth = ([p, q]) => { const lv = dp[p.key + q.key]; return lv >= SQUISH.length ? "deep" : `up to ${SQUISH[lv]}"`; };
+    if (o.length) overlapNote(`Already overlapping (marked red in 3D): ${o.map(pq => `${pieceName(pq[0])} and ${pieceName(pq[1])} (${depth(pq)})`).join(', ')}. The stop keeps it from getting worse; ease a bend or Rotate back to clear it.${guardNote ? '<br>' + guardNote : ''}`, true);
+    else overlapNote(guardNote);
+  }, 120);
 }
 
 // ---------------------------------------------------------------- appearance & theme
 function applyAppearance() {
   scene.background = new THREE.Color(css('--scene'));
   mat.material.color.set(css('--grid'));
-  const cm = P.chone.mesh.material;
-  cm.opacity = state.opacity; cm.transparent = state.opacity < 1; cm.depthWrite = state.opacity >= 1; cm.needsUpdate = true;
+  for (const [p, o] of [[P.chone, state.opacity], [P.mould1, state.opacityM1], [P.mould2, state.opacityM2]]) { // see-through, per piece
+    const m = p.mesh.material;
+    m.opacity = o; m.transparent = o < 1; m.depthWrite = o >= 1; m.needsUpdate = true;
+  }
   P.chone.mesh.visible = state.show.chone; edgeLine.visible = state.show.chone; stitchLine.visible = state.show.chone;
   P.mould1.mesh.visible = state.show.mould1; P.mould2.mesh.visible = state.show.mould2;
   colorsDirty = true; dirty = true; drawFlat();
@@ -776,7 +982,7 @@ canvas.addEventListener('pointerdown', ev => {
     else {
       if (canDraw() && Math.hypot(f[0] - drawFirst[0], f[1] - drawFirst[1]) > 0.5) {
         checkpoint();
-        const h = addHinge({ name: nextBendName(), a: drawFirst, b: f, angle: 30, radius: 1.5, flip: false, pieces: newTargets() });
+        const h = addHinge({ name: nextBendName(), a: drawFirst, b: f, angle: 0, radius: 1.5, flip: false, pieces: newTargets() }); // new lines start flat (at rest)
         select(h.id); save();
       }
       drawFirst = null; pickMarker.visible = false; setDrawMode(false);
@@ -796,7 +1002,7 @@ canvas.addEventListener('pointerdown', ev => {
 canvas.addEventListener('pointermove', ev => {
   if (drag) {
     const h = state.hinges.find(x => x.id === drag.id);
-    h.angle = Math.max(-170, Math.min(170, Math.round(drag.angle + (ev.clientY - drag.y) * 0.6)));
+    guardedSet(h, 'angle', Math.max(-170, Math.min(170, Math.round(drag.angle + (ev.clientY - drag.y) * 0.6))));
     syncBendBox(); dirty = true; return;
   }
   if (ev.buttons) return;
@@ -876,7 +1082,8 @@ function drawFlat() {
     // little arrow toward the side that moves
     const mx = (h.a[0] + h.b[0]) / 2, my = (h.a[1] + h.b[1]) / 2;
     fctx.beginPath(); fctx.moveTo(fx(mx), fy(my)); fctx.lineTo(fx(mx + h.nx * 0.6), fy(my + h.ny * 0.6)); fctx.stroke();
-    if (on && !moving) for (const pt of [h.a, h.b]) {
+    fctx.globalAlpha = 1;
+    if (on) for (const pt of [h.a, h.b]) { // end dots of the selected line, in both tools
       fctx.fillStyle = col; fctx.strokeStyle = css('--fg'); fctx.lineWidth = 1.5;
       fctx.beginPath(); fctx.arc(fx(pt[0]), fy(pt[1]), 5, 0, Math.PI * 2); fctx.fill(); fctx.stroke();
     }
@@ -906,6 +1113,8 @@ function flushPose() {
 flat.addEventListener('pointerdown', ev => {
   const p = flatPt(ev);
   flat.setPointerCapture(ev.pointerId);
+  const sel = selH(); // an end dot of the selected line can be dragged in either tool
+  if (sel) for (const end of ['a', 'b']) if (Math.hypot(sel[end][0] - p[0], sel[end][1] - p[1]) * fs < 12) { checkpoint(); fdrag = { mode: 'end', h: sel, end, ck: undoStack.length }; return; }
   if (state.tool === 'move') {
     if (!state.show[state.moving]) return; // nothing shown to move
     const m = P[state.moving], c = centerOf(m);
@@ -914,8 +1123,6 @@ flat.addEventListener('pointerdown', ev => {
     flat.style.cursor = 'grabbing';
     return;
   }
-  const sel = selH();
-  if (sel) for (const end of ['a', 'b']) if (Math.hypot(sel[end][0] - p[0], sel[end][1] - p[1]) * fs < 12) { checkpoint(); fdrag = { mode: 'end', h: sel, end, ck: undoStack.length }; return; }
   fdrag = { mode: 'draw', start: p, moved: false };
 });
 flat.addEventListener('pointermove', ev => {
@@ -947,7 +1154,7 @@ flat.addEventListener('pointerup', ev => {
   if (d.moved && !canDraw()) { drawFlat(); return; } // every picked piece is hidden: no line
   if (d.moved && Math.hypot(p[0] - d.start[0], p[1] - d.start[1]) > 0.5) {
     checkpoint();
-    const h = addHinge({ name: nextBendName(), a: d.start, b: p, angle: 30, radius: 1.5, flip: false, pieces: newTargets() });
+    const h = addHinge({ name: nextBendName(), a: d.start, b: p, angle: 0, radius: 1.5, flip: false, pieces: newTargets() }); // new lines start flat (at rest)
     select(h.id); save();
   } else { // tap: pick the bend that moves this spot, looking first at the pieces new lines go on
     const pieces = [...PIECES].sort((x, y) => (state.newFor[y.key] ? 1 : 0) - (state.newFor[x.key] ? 1 : 0));
@@ -1110,20 +1317,21 @@ function setThickness(key, t) {
 for (const [id, key] of MOULD_THICK) $(id).addEventListener('input', e => { checkpoint('thick' + key); setThickness(key, +e.target.value); });
 $('resetThick').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_THICK) setThickness(key, 1); });
 $('resetSizes').addEventListener('click', () => { checkpoint(); for (const [, key] of MOULD_SIZE) setPose(P[key], { scale: 100 }); syncMouldSizes(); poseChanged(); });
-$('angle').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('angle' + h.id); h.angle = +e.target.value; syncBendBox(); dirty = true; save(); });
-$('twist').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('twist' + h.id); h.twist = +e.target.value; syncBendBox(); dirty = true; save(); });
-$('radius').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('radius' + h.id); h.radius = +e.target.value; syncBendBox(); dirty = true; save(); });
+$('angle').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('angle' + h.id); guardedSet(h, 'angle', +e.target.value); syncBendBox(); dirty = true; save(); });
+$('twist').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('twist' + h.id); guardedSet(h, 'twist', +e.target.value); syncBendBox(); dirty = true; save(); });
+$('radius').addEventListener('input', e => { const h = selH(); if (!h) return; checkpoint('radius' + h.id); guardedSet(h, 'radius', +e.target.value); syncBendBox(); dirty = true; save(); });
 $('flip').addEventListener('click', () => { const h = selH(); if (!h) return; checkpoint(); h.flip = !h.flip; updateHingeGeom(h); colorsDirty = dirty = true; drawFlat(); save(); });
 $('del').addEventListener('click', () => { checkpoint(); state.hinges = state.hinges.filter(h => h.id !== state.selected); select(null); dirty = true; save(); });
 $('flatten').addEventListener('click', () => { checkpoint(); state.hinges.forEach(h => { h.angle = 0; h.twist = 0; }); syncBendBox(); renderBendList(); dirty = true; save(); });
-$('reset').addEventListener('click', () => { checkpoint(); state.hinges = []; presetHinges().forEach(addHinge); select(state.hinges[1].id); dirty = true; save(); });
+$('reset').addEventListener('click', () => { if (!state.hinges.length) return; checkpoint(); state.hinges = []; select(null); dirty = true; save(); });
 
+$('noOverlap').addEventListener('change', e => { state.noOverlap = e.target.checked; guardNote = ''; scheduleOverlapCheck(); save(); });
 function bindRange(id, key, fmt, after) {
   const el = $(id), out = $(id + 'Out');
   el.value = state[key]; out.textContent = fmt(state[key]);
-  el.addEventListener('input', () => { if (key !== 'opacity') checkpoint('range' + key); state[key] = +el.value; out.textContent = fmt(state[key]); after && after(); dirty = true; save(); });
+  el.addEventListener('input', () => { if (!key.startsWith('opacity')) checkpoint('range' + key); state[key] = +el.value; out.textContent = fmt(state[key]); after && after(); dirty = true; save(); });
 }
-bindRange('opacity', 'opacity', v => `${Math.round(v * 100)}%`, applyAppearance);
+for (const k of ['opacity', 'opacityM1', 'opacityM2']) bindRange(k, k, v => `${Math.round(v * 100)}%`, applyAppearance);
 bindRange('scale', 'scale', v => `${v}%`, () => { updateFlat(P.chone); colorsDirty = true; drawFlat(); });
 bindRange('drape', 'drape', v => `${v}°`);
 bindRange('edgeR', 'edgeR', v => `${(+v).toFixed(2)}"`);
@@ -1143,7 +1351,7 @@ for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mou
 const KEY = 'chone-fit-lab-v2';
 let booted = false;
 function snapshot() {
-  return { scale: state.scale, drape: state.drape, edgeR: state.edgeR, target: state.target, opacity: state.opacity, show: { ...state.show },
+  return { scale: state.scale, drape: state.drape, edgeR: state.edgeR, target: state.target, opacity: state.opacity, opacityM1: state.opacityM1, opacityM2: state.opacityM2, show: { ...state.show }, noOverlap: state.noOverlap,
     newFor: { ...state.newFor }, thick: { mould1: P.mould1.thick, mould2: P.mould2.thick }, poses: Object.fromEntries(PIECES.map(p => [p.key, { ...p.pose }])),
     hinges: state.hinges.map(h => ({ name: h.name, a: h.a, b: h.b, angle: h.angle, twist: h.twist || 0, radius: h.radius, flip: h.flip, pieces: { ...h.pieces } })) };
 }
@@ -1155,20 +1363,21 @@ const fin = v => typeof v === 'number' && Number.isFinite(v);
 const pt2 = v => Array.isArray(v) && v.length === 2 && v.every(fin);
 // Put the whole lab into the state described by s (from this browser's storage or a config file). Missing fields fall back to defaults.
 function applyConfig(s) {
-  for (const k of ['scale', 'drape', 'edgeR', 'target', 'opacity']) if (fin(s[k])) state[k] = s[k];
+  for (const k of ['scale', 'drape', 'edgeR', 'target', 'opacity', 'opacityM1', 'opacityM2']) if (fin(s[k])) state[k] = s[k];
   Object.assign(state.show, { chone: true, mould1: true, mould2: true }, s.show || {});
+  state.noOverlap = !!s.noOverlap; $('noOverlap').checked = state.noOverlap;
   if (s.newFor && Object.values(s.newFor).some(Boolean)) state.newFor = { chone: false, mould1: false, mould2: false, ...s.newFor };
   for (const k of ['mould1', 'mould2']) { const t = s.thick?.[k]; P[k].thick = fin(t) && t > 0 ? t : 1; }
   for (const p of PIECES) {
     const o = s.poses?.[p.key];
     p.pose = o && [o.x, o.y, o.rot].every(fin) ? { x: o.x, y: o.y, rot: o.rot, ...(fin(o.scale) && p.key !== 'chone' ? { scale: o.scale } : {}) } : { x: 0, y: 0, rot: 0 };
   }
-  for (const [id, key] of [['opacity', 'opacity'], ['scale', 'scale'], ['drape', 'drape'], ['edgeR', 'edgeR'], ['target', 'target']]) { $(id).value = state[key]; $(id).dispatchEvent(new Event('input')); }
+  for (const [id, key] of [['opacity', 'opacity'], ['opacityM1', 'opacityM1'], ['opacityM2', 'opacityM2'], ['scale', 'scale'], ['drape', 'drape'], ['edgeR', 'edgeR'], ['target', 'target']]) { $(id).value = state[key]; $(id).dispatchEvent(new Event('input')); }
   for (const [id, key] of [['lyChone', 'chone'], ['lyM1', 'mould1'], ['lyM2', 'mould2']]) $(id).setAttribute('aria-pressed', String(state.show[key]));
   applyThickness();
   for (const p of [P.mould2, P.mould1, P.chone]) updateFlat(p);
   state.hinges = []; state.selected = null; hingeSeq = 0;
-  const hs = Array.isArray(s.hinges) ? s.hinges : presetHinges();
+  const hs = Array.isArray(s.hinges) ? s.hinges : []; // no starting lines
   for (const h of hs) {
     if (!h || !pt2(h.a) || !pt2(h.b)) continue;
     const pieces = h.pieces && PIECES.some(p => h.pieces[p.key]) ? { chone: !!h.pieces.chone, mould1: !!h.pieces.mould1, mould2: !!h.pieces.mould2 } : ALL();
@@ -1203,7 +1412,7 @@ function undo() {
   const u = undoStack.pop(); if (!u) return;
   if (drag || fdrag) return void undoStack.push(u); // not in the middle of a drag
   restoring = true;
-  try { applyConfig({ ...u.cfg, show: { ...state.show }, opacity: state.opacity, newFor: { ...state.newFor } }); }
+  try { applyConfig({ ...u.cfg, show: { ...state.show }, opacity: state.opacity, opacityM1: state.opacityM1, opacityM2: state.opacityM2, newFor: { ...state.newFor }, noOverlap: state.noOverlap }); }
   finally { restoring = false; }
   lastCk = { key: null, t: 0 };
   const h = state.hinges[u.sel];
@@ -1273,7 +1482,7 @@ new ResizeObserver(sizeFlat).observe(flat);
 // (including values set from code, by watching the slider's value setter). A typed value is applied on Enter or when
 // the box loses focus; it is kept inside the slider's range but NOT rounded to the slider's step. The slider's
 // step is relaxed for that, and restored as soon as the slider itself is touched again.
-const NUM_UNITS = { opacity: ['%', 100], rot: ['°'], angle: ['°'], twist: ['°'], radius: ['"'], scale: ['%'], drape: ['°'], edgeR: ['"'],
+const NUM_UNITS = { opacity: ['%', 100], opacityM1: ['%', 100], opacityM2: ['%', 100], rot: ['°'], angle: ['°'], twist: ['°'], radius: ['"'], scale: ['%'], drape: ['°'], edgeR: ['"'],
   m1scale: ['%'], m2scale: ['%'], m1thick: ['"'], m2thick: ['"'], target: ['"'] };
 const rangeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
 function addNumberBox(range) {
