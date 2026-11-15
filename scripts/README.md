@@ -38,6 +38,7 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | Script | What it does |
 | --- | --- |
 | `export_3d.py` | Exports the Chone and both foam moulds as flat triangle meshes in one shared frame, to `viewer/glove-data.js`. See [`../docs/chone-fit-lab.md`](../docs/chone-fit-lab.md). |
+| `mould_from_chone.py` | Designs one foam mould from the Chone's stitch line (pulled in by the foam thickness plus ease, wrist edge flush). Writes a DXF and, optionally, a viewer config. See "A mould designed from the Chone" in [`../PATTERN-NOTES.md`](../PATTERN-NOTES.md). |
 
 ## Commands
 
@@ -60,4 +61,7 @@ python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-105-A4-tiled.pdf "Chone"
 
 python scripts/export_3d.py "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
+
+python scripts/mould_from_chone.py "dxf/Laces Boxing 14OZ (1).dxf" "dxf/Mould from Chone - 1in foam.dxf" --foam 1.0 \
+  --config viewer/config/mould-from-chone-flat.json --base viewer/config/chone-fit-config.json
 ```

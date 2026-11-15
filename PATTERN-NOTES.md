@@ -183,6 +183,29 @@ From the original file, made by `chone_mould_relation.py` (`renders/chone-mould-
 
 Overall, Mould 1 is about 0.83–0.86 × the Chone stitch line. Mould 2 is about 0.92 × Mould 1, and the Cuff Mould is about 0.95 × the Chone Cuff stitch line (0.12" gap). These ratios come from a Chone that turned out too small (see above), so treat them as the minimum.
 
+## A mould designed from the Chone (2026-11-15)
+
+Instead of making the Chone bigger to fit the drawn mould, this goes the other way: one new foam mould, made entirely from the original (100%) Chone. File: `dxf/Mould from Chone - 1in foam.dxf`, made by `scripts/mould_from_chone.py`.
+
+**The rule.** The Chone covers the mould's top face and wraps down its side wall, so its stitch line lands on the palm face, where it meets the palm. Laid flat, that means the stitch line sits one foam thickness outside the mould all round. So the mould is the Chone's stitch line pulled in by **1.1"**: 1" of foam plus 0.1" ease for the leather turning over the top edge. The wrist edge isn't pulled in, because it's sewn to the cuff. Corners are rounded at 0.25".
+
+| | Mould 1 (drawn) | Mould from Chone |
+| --- | --- | --- |
+| Size, W × L | 10.13" × 12.68" | 9.60" × 13.88" |
+| Stitch line to mould edge | 0.10–1.94" (uneven) | 1.10" everywhere |
+
+The new mould is 0.5" narrower and 1.2" longer than the drawn one. Its thumb crotch is pulled in too, which is where the drawn mould was tightest.
+
+**Checked in the Chone Fit Lab** (1" foam, edge wrap 90°):
+
+- Flat: the stitch line reaches 1.00" down the foam wall all round, which is the full foam thickness.
+- Fingers curled 180° (two 90° bends, with the Chone's second bend moved out to allow for the extra length it uses going round the outside): 93% of the seam reaches 1", and the shortest is 0.91". The dips are where the curl crosses the side wall.
+- Thumb folded: not checked properly yet. A fold line drawn through the mould's crotch runs on through the Chone up to the fingertips, because the Chone's notch is about 1.3" further out. The viewer then folds the Chone's whole index-finger edge with the thumb.
+
+Viewer configs: `viewer/config/mould-from-chone-flat.json` and `viewer/config/mould-from-chone-curled.json` (git-ignored, local only). The script can make the mould for other foam thicknesses (`--foam`), and can trim extra off the fingertips (`--tip`) or the thumb (`--thumb`).
+
+This assumes 1" foam, the value used in the viewer. The earlier notes assumed about 2". At 2" the same rule gives a mould only about 7.6" wide, so measure the real foam first.
+
 ## Files and scripts
 
 All of these are in this project folder.
@@ -214,6 +237,8 @@ All of these are in this project folder.
 | `scripts/chone_mould_relation.py` | Measures the gap between each mould and the leather piece that covers it (`renders/chone-mould-relation.png`) |
 | `scripts/export_3d.py` | Exports the Chone, Mould 1 and Mould 2 as flat meshes in one shared frame (`viewer/glove-data.js`) |
 | `viewer/chone-fit-lab.html` | 3D bend viewer: draw bend lines, curl the Chone and foam together, check how far the stitch line reaches down the foam edge |
+| `dxf/Mould from Chone - 1in foam.dxf` | One foam mould made from the Chone's stitch line (1" foam), see "A mould designed from the Chone" |
+| `scripts/mould_from_chone.py` | Makes that mould DXF, plus a viewer config with it under the Chone |
 | `scripts/print_tiled.py` | Makes tiled prints of pieces too big for one A4 page and packs smaller pieces into the free space (needs `shapely`) |
 
 The scripts need Python with `ezdxf` and `matplotlib` installed (`pip install ezdxf matplotlib`). Keep the scripts together, because some of them import from the others.
