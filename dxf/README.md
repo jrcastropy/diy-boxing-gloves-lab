@@ -9,6 +9,7 @@ The scale bar drawn on the sheet doesn't match the file's units, so use the file
 | `Laces Boxing 14OZ (1).dxf` | The original pattern, unchanged | — |
 | `Laces Boxing 14OZ - palm 96%.dxf` | The original with the Front Palm scaled to 96%, so it matches the pieces it's sewn to | `scripts/scale_palm.py` |
 | `Laces Boxing 14OZ - palm 96% cuff matched.dxf` | Palm at 96%, plus the Chone Cuff scaled by 100.58%, so its top outer edge matches the Chone's bottom outer edge | `scripts/scale_cuff.py` |
+| `Laces Boxing 14OZ - palm+thumb 95%.dxf` (and `96%`, `97%`) | The "cuff matched" pattern with the Front Palm and the Thumb both at 95% (or 96%, 97%) of their size in that file. Not the same as `palm 96%.dxf`. Original Chone and matched Cuff unchanged. | `scripts/scale_palm_thumb.py` |
 | `Laces Boxing 14OZ - chone 105%.dxf` | The "cuff matched" pattern with the Chone and Chone Cuff at 105%. This is the current test pattern. | `scripts/scale_chone.py` |
 | `Laces Boxing 14OZ - chone 110%.dxf` | The same at 110% | `scripts/scale_chone.py` |
 | `Laces Boxing 14OZ - chone 115%.dxf` | The same at 115% | `scripts/scale_chone.py` |

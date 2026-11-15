@@ -24,6 +24,7 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | `scale_palm.py` | Saves a copy of the DXF with the Front Palm scaled. Nothing else changes. |
 | `scale_cuff.py` | Scales the Chone Cuff so its top outer edge is exactly as long as the Chone's bottom outer edge. |
 | `scale_chone.py` | Scales the Chone and the Chone Cuff by the same amount, so they still match. |
+| `scale_palm_thumb.py` | Scales the Front Palm and the Thumb by the same amount, so the Thumb seam stays matched. Refuses to overwrite an existing file. |
 
 ## Printing
 
@@ -57,6 +58,16 @@ python scripts/scale_cuff.py "dxf/Laces Boxing 14OZ - palm 96%.dxf" "dxf/Laces B
 python scripts/scale_chone.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - chone 105%.dxf" 1.05
 
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm 96%.dxf" print/thumb-and-palm-A4.pdf
+
+python scripts/scale_palm_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - palm+thumb 95%.dxf" 0.95
+python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm+thumb 95%.dxf" print/thumb-and-palm-95-A4.pdf
+python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - palm+thumb 95%.dxf" renders/palm-over-chone-with-cuff-95.png
+python scripts/scale_palm_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - palm+thumb 96%.dxf" 0.96
+python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm+thumb 96%.dxf" print/thumb-and-palm-96-A4.pdf
+python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - palm+thumb 96%.dxf" renders/palm-over-chone-with-cuff-96.png
+python scripts/scale_palm_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" 0.97
+python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" print/thumb-and-palm-97-A4.pdf
+python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" renders/palm-over-chone-with-cuff-97.png
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-cuff-105-A4.pdf "Chone Cuff"
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-105-A4-tiled.pdf "Chone"
 

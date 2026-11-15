@@ -255,6 +255,20 @@ python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chon
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-cuff-105-A4.pdf "Chone Cuff"
 ```
 
+## Palm and Thumb at 95 / 96 / 97% (test)
+
+The original Chone looked too small for the palm, so the Front Palm and the Thumb were scaled together, starting from `palm 96% cuff matched.dxf` (its palm and thumb count as 100%). The full write-up is [`docs/palm-thumb-scale.md`](docs/palm-thumb-scale.md).
+
+| | 100% | 97% | 96% | 95% |
+| --- | --- | --- | --- | --- |
+| Front Palm, W × L | 6.47" × 11.16" | 6.28" × 10.82" | 6.21" × 10.71" | 6.15" × 10.60" |
+| Thumb, W × H | 6.16" × 3.79" | 5.97" × 3.68" | 5.91" × 3.64" | 5.85" × 3.60" |
+| Thumb seam (thumb longer by) | 0.6 mm | 0.6 mm | 0.6 mm | 0.6 mm |
+| Lace side, palm minus cuff (join / middle / wrist) | +0.15 / +0.19 / +0.24" | −0.04 / 0.00 / +0.04" | −0.10 / −0.06 / −0.02" | −0.16 / −0.12 / −0.08" |
+| Palm bottom above cuff bottom | 0.32" | 0.46" | 0.50" | 0.55" |
+
+Minus means the palm sits inside the back's edge.
+
 ## Open questions and next steps
 
 - [ ] **Lace-side overhang.** The palm still sticks out 0.2–0.3" past the cuff on the lace side. Ask the pattern maker whether that's intended (so the lacing edge wraps around) or should be trimmed.
