@@ -89,6 +89,13 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .btn.load { background: #2f6fb0; border-color: #2f6fb0; color: #fff; }
 .btn.save:hover, .btn.load:hover { filter: brightness(1.1); }
 .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Config save folder: a "choose" button with the chosen path beside it, like a file input. */
+.savepath { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); min-width: 0; }
+.savepath .btn { flex: none; background: var(--panel); }
+.savepath .path { min-width: 0; font: 12.5px var(--font-mono); color: var(--fg); overflow-wrap: anywhere; }
+.savepath .path.unset { font-family: var(--font-body); color: var(--muted); }
+.textin { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 12.5px var(--font-mono); padding: 5px 7px; }
+.textin:focus { border-color: var(--accent); outline: none; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .flat { width: 100%; aspect-ratio: 13 / 16; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); touch-action: none; cursor: crosshair; display: block; }
 .note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
@@ -254,12 +261,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     </section>
 
     <section class="tabpanel" id="tab-config" role="tabpanel" aria-label="Config" hidden>
+      <div class="savepath" id="cfgDirBox">
+        <button class="btn" id="cfgDir">Choose folder…</button>
+        <span class="path unset" id="cfgDirPath" title="Where Save config writes">Not chosen yet. Pick <b>viewer/config</b>.</span>
+      </div>
+      <label class="pickrow" for="cfgName">File name
+        <input type="text" class="textin" id="cfgName" value="chone-fit-config.json" spellcheck="false" autocomplete="off">
+      </label>
       <div class="btns">
-        <button class="btn save" id="cfgSave">Save config…</button>
+        <button class="btn save" id="cfgSave">Save config</button>
         <button class="btn load" id="cfgLoad">Load config…</button>
         <input type="file" id="cfgFile" accept=".json,application/json" hidden>
       </div>
-      <p class="note" id="cfgStatus">Saves everything (items and their outlines, bend lines, positions, sizes, thicknesses, sliders) as a JSON file. Keep configs in <b>viewer/config</b>: the first time, browse there in the dialog, and after that Save and Load open there by themselves (Chrome and Edge).</p>
+      <p class="note" id="cfgStatus">Saves everything (items and their outlines, bend lines, positions, sizes, thicknesses, sliders) as a JSON file. Choose <b>viewer/config</b> as the save folder once; after that Save writes there straight away and Load opens there.</p>
     </section>
     <p class="note err" id="err" hidden></p>
   </aside>
@@ -517,27 +531,35 @@ function orderFor(p) { return state.hinges.filter(h => h.cache[p.key]).sort((x, 
 
 // Rigid motion of one point for one bend. Mutates v (array of 3).
 // Rotate (twist): before bending, the part past the line rolls about an axis running across the line
-// (along n, the arrow), through the middle of the cut at mid-stack height, so all layers turn together.
+// (along n, the arrow), through the middle of the cut at mid-height of the line's pieces, so they turn together.
 // The roll builds up over the first TWIST_RAMP inches past the line, so the piece doesn't tear at the line.
 // Turning about n leaves each point's distance d across the line unchanged, so the bend below still applies.
 const TWIST_RAMP = 1.0;
+// The layers a line acts on: from the bottom of its lowest piece to the top of its highest. The crease and the
+// Rotate axis are measured from these, so a line on the Chone alone folds at the Chone, not under the moulds.
+function setSpan(h) {
+  let lo = Infinity, hi = -Infinity;
+  for (const p of PIECES) if (h.pieces[p.key]) { lo = Math.min(lo, p.z0); hi = Math.max(hi, p.z1); }
+  if (lo > hi) { lo = 0; hi = HTOP; }
+  h.zlo = lo; h.zhi = hi;
+}
 function twistPoint(v, h, d) {
   const tw = (h.twist || 0) * DEG;
   if (tw === 0 || d <= 0) return;
   const ang = tw * Math.min(1, d / TWIST_RAMP), c = Math.cos(ang), sn = Math.sin(ang);
   const kx = h.nx, ky = h.ny; // unit axis (kz = 0)
-  const x = v[0] - h.tc[0], y = v[1] - h.tc[1], z = v[2] - HTOP / 2;
+  const zm = (h.zlo + h.zhi) / 2, x = v[0] - h.tc[0], y = v[1] - h.tc[1], z = v[2] - zm;
   const dot = kx * x + ky * y;
   const cx = ky * z, cy = -kx * z, cz = kx * y - ky * x; // k × v
   v[0] = x * c + cx * sn + kx * dot * (1 - c) + h.tc[0];
   v[1] = y * c + cy * sn + ky * dot * (1 - c) + h.tc[1];
-  v[2] = z * c + cz * sn + HTOP / 2;
+  v[2] = z * c + cz * sn + zm;
 }
 function bendPoint(v, h, p, d) {
   twistPoint(v, h, d); // rotate first, then bend
   const th = h.angle * DEG;
   if (th === 0 || d <= 0) return;
-  const R = h.radius, zc = th > 0 ? -R : HTOP + R;
+  const R = h.radius, zc = th > 0 ? h.zlo - R : h.zhi + R; // crease face: under the line's lowest piece, or over its highest
   const rn = Math.abs(p.neutral - zc);
   // rn = 0 when the crease sits exactly on this layer (radius 0, curling toward the back for the Chone):
   // a sharp hinge, which uses up no length and turns the whole part by the full angle.
@@ -738,6 +760,7 @@ function leatherLocal(p, i, r, out) {
 // Bent positions of one piece, in the mesh's vertex layout. inset pulls the faces in (used by the overlap check).
 function deformInto(p, order, pos, inset = 0) { // order: only the bends that act on this piece
   const src = p.src, zl = p.zl, leather = isLeather(p);
+  for (const h of order) setSpan(h);
   for (let r = 0; r < src.length; r++) {
     const i = src[r];
     if (leather) { leatherLocal(p, i, r, tmp); tmp[2] += zl[r] ? -inset : inset; }
@@ -1690,21 +1713,83 @@ addEventListener('keydown', e => {
   }
 });
 
-// Config files. Pages can't open a dialog at a fixed path, so the dialogs share one remembered-folder id:
-// browse to viewer/config once and Chrome/Edge open there for every later save and load (kept across reloads).
-// Without the file-system dialogs (Safari, Firefox) Save downloads the file and Load uses a plain file picker.
+// Config files. A page can't open a dialog at a fixed path, so you choose the save folder (viewer/config) once with
+// "Choose folder…". Its handle is kept in IndexedDB, so it survives reloads. After that Save writes the file
+// straight into it (no dialog) and Load's picker starts there. After a reload the browser asks once whether the page
+// may edit that folder again. The browser only tells the page the folder's name, not its full path.
+// Without folder access (Safari, Firefox) Save downloads the file and Load uses a plain file picker.
 const CFG_DIALOG = { id: 'chone-fit-config', types: [{ description: 'Chone Fit Lab config', accept: { 'application/json': ['.json'] } }] };
-let cfgHandle = null;
+const CFG_NAME_KEY = 'chone-fit-lab-cfg-name';
+const canPickDir = !!window.showDirectoryPicker;
+let cfgDir = null; // FileSystemDirectoryHandle of the save folder
 const cfgStatus = (msg, bad) => { $('cfgStatus').textContent = msg; $('cfgStatus').classList.toggle('err', !!bad); };
+
+// One tiny IndexedDB store for the folder handle (localStorage can't hold handles).
+function cfgDb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open('chone-fit-lab', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('handles');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('handles', mode), req = fn(tx.objectStore('handles'));
+      tx.oncomplete = () => { open.result.close(); resolve(req.result); };
+      tx.onerror = () => { open.result.close(); reject(tx.error); };
+    };
+  });
+}
+const getCfgDir = () => cfgDb('readonly', st => st.get('cfgDir')).catch(() => null);
+const putCfgDir = h => cfgDb('readwrite', st => st.put(h, 'cfgDir')).catch(() => null);
+
+function showCfgDir() {
+  const el = $('cfgDirPath');
+  el.classList.toggle('unset', !cfgDir);
+  if (cfgDir) { el.textContent = `…/${cfgDir.name}/`; el.title = `Save config writes into the "${cfgDir.name}" folder you chose`; }
+  else el.innerHTML = canPickDir ? 'Not chosen yet. Pick <b>viewer/config</b>.' : 'This browser can’t pick a folder. Save downloads the file instead.';
+}
+// The file name to save as: always ends in .json, no path separators.
+function cfgFileName() {
+  let n = $('cfgName').value.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'chone-fit-config';
+  if (!/\.json$/i.test(n)) n += '.json';
+  $('cfgName').value = n;
+  try { localStorage.setItem(CFG_NAME_KEY, n); } catch (e) { /* fine */ }
+  return n;
+}
+// Read/write permission on the save folder. Must be called from a click (the browser may show a prompt).
+async function cfgDirWritable() {
+  if (!cfgDir) return false;
+  const opts = { mode: 'readwrite' };
+  if (await cfgDir.queryPermission(opts) === 'granted') return true;
+  return await cfgDir.requestPermission(opts) === 'granted';
+}
+async function chooseCfgDir() {
+  try {
+    const h = await window.showDirectoryPicker({ id: CFG_DIALOG.id, mode: 'readwrite', ...(cfgDir ? { startIn: cfgDir } : {}) });
+    cfgDir = h; await putCfgDir(h); showCfgDir();
+    cfgStatus(`Configs will be saved in ${h.name}/.`);
+    return true;
+  } catch (e) { if (e.name !== 'AbortError') cfgStatus(`Couldn't use that folder: ${e.message}`, true); return false; }
+}
+
+$('cfgDir').addEventListener('click', chooseCfgDir);
+$('cfgName').addEventListener('change', cfgFileName);
+$('cfgName').addEventListener('keydown', e => { if (e.key === 'Enter') $('cfgSave').click(); });
 $('cfgSave').addEventListener('click', async () => {
   const text = JSON.stringify({ app: 'chone-fit-lab', savedAt: new Date().toISOString(), ...snapshot() }, null, 2);
-  const name = cfgHandle?.name || 'chone-fit-config.json';
-  if (window.showSaveFilePicker) {
+  const name = cfgFileName();
+  if (canPickDir) {
+    if (!cfgDir && !await chooseCfgDir()) return; // first save: pick the folder, then carry on
     try {
-      const fh = await window.showSaveFilePicker({ ...CFG_DIALOG, suggestedName: name });
+      if (!await cfgDirWritable()) return void cfgStatus(`No permission to write in ${cfgDir.name}/. Click Save again and allow it, or choose the folder again.`, true);
+      let exists = true;
+      try { await cfgDir.getFileHandle(name); } catch (e) { exists = false; }
+      if (exists && !confirm(`${name} already exists in ${cfgDir.name}/. Replace it?`)) return;
+      const fh = await cfgDir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(text); await w.close();
-      cfgHandle = fh; cfgStatus(`Saved ${fh.name} (${state.hinges.length} bend lines).`); return;
-    } catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to a download */ }
+      cfgStatus(`Saved ${cfgDir.name}/${name} (${PIECES.length} items, ${state.hinges.length} bend lines).`); return;
+    } catch (e) {
+      if (e.name === 'NotFoundError') { cfgDir = null; showCfgDir(); return void cfgStatus('The save folder is gone (moved or deleted). Choose it again.', true); }
+      cfgStatus(`Couldn't save ${name}: ${e.message}`, true); return;
+    }
   }
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })), link = document.createElement('a');
   link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
@@ -1713,11 +1798,19 @@ $('cfgSave').addEventListener('click', async () => {
 });
 $('cfgLoad').addEventListener('click', async () => {
   if (window.showOpenFilePicker) {
-    try { const [fh] = await window.showOpenFilePicker({ ...CFG_DIALOG, multiple: false }); return loadConfigFile(await fh.getFile()); }
-    catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to the plain file input */ }
+    try {
+      const { id, ...types } = CFG_DIALOG; // with a save folder, start there rather than wherever the id remembers
+      const [fh] = await window.showOpenFilePicker({ ...(cfgDir ? { ...types, startIn: cfgDir } : CFG_DIALOG), multiple: false });
+      const file = await fh.getFile();
+      $('cfgName').value = file.name; cfgFileName(); // saving next goes back to the same file
+      return loadConfigFile(file);
+    } catch (e) { if (e.name === 'AbortError') return; /* picker blocked: fall back to the plain file input */ }
   }
   $('cfgFile').click();
 });
+try { const n = localStorage.getItem(CFG_NAME_KEY); if (n) $('cfgName').value = n; } catch (e) { /* fine */ }
+showCfgDir();
+if (canPickDir) getCfgDir().then(h => { if (h) { cfgDir = h; showCfgDir(); } });
 $('cfgFile').addEventListener('change', e => { const file = e.target.files[0]; e.target.value = ''; if (file) loadConfigFile(file); });
 async function loadConfigFile(file) {
   try {
