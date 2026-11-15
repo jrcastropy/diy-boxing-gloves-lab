@@ -50,6 +50,8 @@ PIECES = {  # name -> [outer outline, inner outline]
     "Chone": ["95", "96"],
     "Chone Cuff": ["310", "311"],
     "Thumb": ["32E", "331"],
+    "Mould 1": ["320"],  # foam moulds: one outline each
+    "Mould 2": ["2FE"],
 }
 EXTRAS = {}  # e.g. {"Chone": ["Chone Cuff", "Thumb"]} to pack other pieces into the free space
 

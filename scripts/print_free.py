@@ -19,6 +19,8 @@ Print at 100% / "Actual size" (NOT "Fit to page").
 Needs: ezdxf, matplotlib, shapely.
 
 Usage: python scripts/print_free.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" print/chone-A4-tiled-butt.pdf "Chone"
+       several pieces go into one PDF, one after the other:
+       python scripts/print_free.py "dxf/Laces Boxing 14OZ (1).dxf" print/moulds-A4-tiled-butt.pdf "Mould 1" "Mould 2"
 """
 import sys
 from pathlib import Path
@@ -158,8 +160,15 @@ def mini_map(pg, pages, current, x0, y0, scale):
         pg.text(x0 + (c.x - ox) * scale, y0 + (c.y - oy) * scale, str(i + 1), fontsize=5, ha="center", va="center")
 
 
-def main(dxf, out, name):
+def main(dxf, out, *names):
     doc = ezdxf.readfile(dxf)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    with PdfPages(out) as pdf:
+        for name in names:
+            piece(doc, dxf, pdf, name)
+
+
+def piece(doc, dxf, pdf, name):
     db = doc.entitydb
     keep = handles_for(doc, PIECES[name])
     shape = Polygon(poly(db[PIECES[name][0]])).buffer(PAD)
@@ -185,49 +194,47 @@ def main(dxf, out, name):
 
     cfg = Configuration(background_policy=BackgroundPolicy.WHITE, color_policy=ColorPolicy.BLACK,
                         min_lineweight=0.3)
-    Path(out).parent.mkdir(parents=True, exist_ok=True)
 
-    with PdfPages(out) as pdf:
-        for i, p in enumerate(pages):
-            pw, ph = p["pw"], p["ph"]
-            a, b, c, d = p["rect"].bounds
-            fig = plt.figure(figsize=(pw, ph))
-            pg = fig.add_axes([0, 0, 1, 1])
-            pg.set_xlim(0, pw)
-            pg.set_ylim(0, ph)
-            pg.axis("off")
-            ax = fig.add_axes([MARGIN / pw, MARGIN / ph, (c - a) / pw, (d - b) / ph])
-            Frontend(RenderContext(doc), MatplotlibBackend(ax), config=cfg).draw_layout(
-                doc.modelspace(), finalize=False, filter_func=lambda e: e.dxf.handle in keep
-            )
-            # clip the pattern to the region this page owns
-            clip = PathPatch(MplPath.make_compound_path(*[MplPath(list(q.exterior.coords), closed=True)
-                                                           for q in as_polys(p["own"])]),
-                             transform=ax.transData, visible=False)
-            ax.add_patch(clip)
-            for art in list(ax.get_children()):
-                if art is not ax.patch and art is not clip and hasattr(art, "set_clip_path"):
-                    art.set_clip_path(clip)
-            draw_region(ax, p["own"], color="black", lw=CUT_LW, solid_capstyle="projecting", clip_on=False)
-            ax.set_xlim(a, c)
-            ax.set_ylim(b, d)
-            ax.set_aspect("equal")
-            ax.axis("off")
-            pg.text(MARGIN, ph - MARGIN + 0.32,
-                    f"{name} 14OZ  -  page {i + 1} of {len(pages)} ({p['orient']})  -  {Path(dxf).stem}",
-                    fontsize=8, va="bottom")
-            pg.text(MARGIN, ph - MARGIN + 0.12,
-                    "Print at 100% / Actual size. Cut exactly on the solid border, butt the edges together, tape.",
-                    fontsize=6, va="bottom")
-            allw = max(q["rect"].bounds[2] for q in pages) - min(q["rect"].bounds[0] for q in pages)
-            allh = max(q["rect"].bounds[3] for q in pages) - min(q["rect"].bounds[1] for q in pages)
-            scale = (MARGIN - 0.15) / allh  # fits in the top margin
-            mini_map(pg, pages, i, pw - MARGIN - allw * scale, ph - MARGIN + 0.05, scale)
-            margin_rulers(pg)
-            pdf.savefig(fig)
-            plt.close(fig)
-            print(f"page {i + 1}: {p['orient']}, owns x {p['own'].bounds[0]:.2f}..{p['own'].bounds[2]:.2f}"
-                  f"  y {p['own'].bounds[1]:.2f}..{p['own'].bounds[3]:.2f}")
+    for i, p in enumerate(pages):
+        pw, ph = p["pw"], p["ph"]
+        a, b, c, d = p["rect"].bounds
+        fig = plt.figure(figsize=(pw, ph))
+        pg = fig.add_axes([0, 0, 1, 1])
+        pg.set_xlim(0, pw)
+        pg.set_ylim(0, ph)
+        pg.axis("off")
+        ax = fig.add_axes([MARGIN / pw, MARGIN / ph, (c - a) / pw, (d - b) / ph])
+        Frontend(RenderContext(doc), MatplotlibBackend(ax), config=cfg).draw_layout(
+            doc.modelspace(), finalize=False, filter_func=lambda e: e.dxf.handle in keep
+        )
+        # clip the pattern to the region this page owns
+        clip = PathPatch(MplPath.make_compound_path(*[MplPath(list(q.exterior.coords), closed=True)
+                                                       for q in as_polys(p["own"])]),
+                         transform=ax.transData, visible=False)
+        ax.add_patch(clip)
+        for art in list(ax.get_children()):
+            if art is not ax.patch and art is not clip and hasattr(art, "set_clip_path"):
+                art.set_clip_path(clip)
+        draw_region(ax, p["own"], color="black", lw=CUT_LW, solid_capstyle="projecting", clip_on=False)
+        ax.set_xlim(a, c)
+        ax.set_ylim(b, d)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        pg.text(MARGIN, ph - MARGIN + 0.32,
+                f"{name} 14OZ  -  page {i + 1} of {len(pages)} ({p['orient']})  -  {Path(dxf).stem}",
+                fontsize=8, va="bottom")
+        pg.text(MARGIN, ph - MARGIN + 0.12,
+                "Print at 100% / Actual size. Cut exactly on the solid border, butt the edges together, tape.",
+                fontsize=6, va="bottom")
+        allw = max(q["rect"].bounds[2] for q in pages) - min(q["rect"].bounds[0] for q in pages)
+        allh = max(q["rect"].bounds[3] for q in pages) - min(q["rect"].bounds[1] for q in pages)
+        scale = (MARGIN - 0.15) / allh  # fits in the top margin
+        mini_map(pg, pages, i, pw - MARGIN - allw * scale, ph - MARGIN + 0.05, scale)
+        margin_rulers(pg)
+        pdf.savefig(fig)
+        plt.close(fig)
+        print(f"page {i + 1}: {p['orient']}, owns x {p['own'].bounds[0]:.2f}..{p['own'].bounds[2]:.2f}"
+              f"  y {p['own'].bounds[1]:.2f}..{p['own'].bounds[3]:.2f}")
 
     # checks
     owns = [p["own"] for p in pages]
@@ -243,4 +250,4 @@ def main(dxf, out, name):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2], *sys.argv[3:])

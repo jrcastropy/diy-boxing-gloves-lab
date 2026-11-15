@@ -12,6 +12,7 @@ True-size A4 PDFs of pattern pieces, ready to print. **Print at 100% ("actual si
 | `chone-105-A4-tiled.pdf` (and `-110`, `-115`, `-120`) | The scaled Chone test patterns, tiled across A4 pages | `scripts/print_free.py` / `scripts/print_tiled.py` |
 | `chone-A4-tiled-butt.pdf` | The Chone at 100% on 3 A4 pages with **butt joins**: cut on the solid border, butt the edges, tape | `scripts/print_free.py` |
 | `chone-105-A4-tiled-butt.pdf` (and `-110`, `-115`, `-120`) | The scaled Chone test patterns with butt joins (3, 3, 4 and 4 pages) | `scripts/print_free.py` |
+| `moulds-A4-tiled-butt.pdf` | Foam Mould 1 (pages 1–2) and Mould 2 (pages 3–4) from the original DXF, true size, butt joins. Mould 2 prints upside down, the way it is drawn on the sheet. | `scripts/print_free.py` |
 
 On the `-tiled-butt` prints, each page has a solid border around the part it owns. Cut exactly on that border. Use the small map in the top-right corner to see where the page goes, butt the cut edges together and tape them. There are no overlaps and no alignment marks. Some borders are L-shaped where pages step around each other.
 

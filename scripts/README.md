@@ -53,6 +53,8 @@ python scripts/compare_thumb_seam.py "dxf/Laces Boxing 14OZ (1).dxf" renders/thu
 python scripts/chone_vs_mould.py
 python scripts/chone_mould_relation.py "dxf/Laces Boxing 14OZ (1).dxf" renders/chone-mould-relation.png
 
+python scripts/print_free.py "dxf/Laces Boxing 14OZ (1).dxf" print/moulds-A4-tiled-butt.pdf "Mould 1" "Mould 2"
+
 python scripts/scale_palm.py "dxf/Laces Boxing 14OZ (1).dxf" "dxf/Laces Boxing 14OZ - palm 96%.dxf" 0.96
 python scripts/scale_cuff.py "dxf/Laces Boxing 14OZ - palm 96%.dxf" "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf"
 python scripts/scale_chone.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - chone 105%.dxf" 1.05
