@@ -32,7 +32,7 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | --- | --- |
 | `print_pdf.py` | True-size A4 PDF of chosen pieces (default: Front Palm and Thumb), with check rulers built from real units. |
 | `print_tiled.py` | Tiles a piece too big for one A4 page across a grid of pages, with alignment marks in the overlaps. |
-| `print_free.py` | Like `print_tiled.py`, but finds the fewest A4 pages. Pages can be portrait or landscape and don't have to form a grid. |
+| `print_free.py` | Finds the fewest A4 pages for a large piece. Pages can be portrait or landscape and don't have to form a grid. Pages **butt** together: each page prints only the region it owns, with a solid cut border, and has no overlaps or alignment marks. |
 
 ## 3D viewer data
 
@@ -69,7 +69,7 @@ python scripts/scale_palm_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matche
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" print/thumb-and-palm-97-A4.pdf
 python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" renders/palm-over-chone-with-cuff-97.png
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-cuff-105-A4.pdf "Chone Cuff"
-python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-105-A4-tiled.pdf "Chone"
+python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-105-A4-tiled-butt.pdf "Chone"
 
 python scripts/export_3d.py "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
 

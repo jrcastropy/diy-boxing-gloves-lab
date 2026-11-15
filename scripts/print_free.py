@@ -2,21 +2,23 @@
 
 Pages are not forced into a grid: each page can be portrait or landscape and sit
 anywhere, as long as together they cover the whole piece and every join between
-two pages overlaps by at least OVERLAP inches (so the pages can be taped).
+two pages is a BUTT join: no overlap. Each page prints only the region it owns
+(its rectangle minus the pages placed before it), so the owned regions fit together
+edge to edge like a jigsaw.
 
 Search (exact up to a 0.25" step): the leftmost uncovered point of the piece must
 be covered by some page, so that page's left edge goes exactly there; repeat for
 the next page; the last page must cover everything left. Tries the piece upright
 first, other angles only if upright needs more pages.
 
-Each page has: the piece (clipped to the page), alignment marks (circle + cross)
-in every overlap, kept clear of pattern lines, check rulers (4 in, 10 cm) generated
-from real units, and a small map showing where the page goes.
+Each page has: the piece (clipped to the page's own region), a solid CUT LINE around
+that region (cut exactly on it, then butt the cut edges together and tape), check rulers (4 in, 10 cm)
+generated from real units, and a small map showing where the page goes.
 
 Print at 100% / "Actual size" (NOT "Fit to page").
 Needs: ezdxf, matplotlib, shapely.
 
-Usage: python scripts/print_free.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" print/chone-A4-tiled.pdf "Chone"
+Usage: python scripts/print_free.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" print/chone-A4-tiled-butt.pdf "Chone"
 """
 import sys
 from pathlib import Path
@@ -27,26 +29,32 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path as MplPath
 from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.config import BackgroundPolicy, ColorPolicy, Configuration
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
-from shapely.geometry import LineString, Point, Polygon, box
+
+from shapely.geometry import Polygon, box
+from shapely.ops import transform
+from shapely.ops import unary_union
 
 from print_pdf import handles_for
-from print_tiled import CM, MARGIN, OVERLAP, PAD, PIECES, draw_mark, margin_rulers
+from print_tiled import MARGIN, PAD, PIECES, margin_rulers
 from render_pieces import poly
 
 A4 = (210 / 25.4, 297 / 25.4)  # portrait (w, h) in inches
 STEP = 0.25
-MARK_CLEAR = 0.35
+SNAP = 0.25  # page edges closer than this are merged into one straight cut
+CUT_LW = 0.9  # cut line weight (points)
 
 
 def page_sizes():
-    """(name, page w, page h, core w, core h). Core = printable area minus OVERLAP/2 per side."""
+    """(name, page w, page h, core w, core h). Core = the whole printable area (butt joins)."""
     out = []
     for name, (pw, ph) in (("portrait", A4), ("landscape", A4[::-1])):
         cw, ch = pw - 2 * MARGIN, ph - 2 * MARGIN
-        out.append((name, pw, ph, cw - OVERLAP, ch - OVERLAP))
+        out.append((name, pw, ph, cw, ch))
     return out
 
 
@@ -84,47 +92,70 @@ def search(shape, max_pages=6):
     return None
 
 
-def overlap_marks(pages, lines):
-    """3 marks in each overlap between two pages, along the overlap's long axis, clear of lines."""
-    marks = []
-    for i in range(len(pages)):
-        for j in range(i + 1, len(pages)):
-            inter = pages[i]["rect"].intersection(pages[j]["rect"])
-            if inter.is_empty or inter.area < 0.05:
+def as_polys(g):
+    return [g] if g.geom_type == "Polygon" else [q for q in getattr(g, "geoms", []) if q.geom_type == "Polygon"]
+
+
+def draw_region(ax, region, **kw):
+    for q in as_polys(region):
+        for ring in [q.exterior, *q.interiors]:
+            xs, ys = ring.xy
+            ax.plot(xs, ys, **kw)
+
+
+def snap_edges(pages, shape):
+    """Merge cut-line coordinates that are nearly equal, so joins are straight lines without tiny steps.
+    For each cluster of close x (or y) values, try each value and keep the first that still covers the
+    piece, keeps every region inside its printable area, and keeps regions from overlapping."""
+    import numpy as np
+
+    def ok(owns):
+        if not unary_union(owns).buffer(1e-6).contains(shape.buffer(-1e-6)):
+            return False
+        if any(o.difference(p["rect"]).area > 1e-4 for o, p in zip(owns, pages)):
+            return False
+        return all(owns[a].intersection(owns[b]).area < 1e-6
+                   for a in range(len(owns)) for b in range(a + 1, len(owns)))
+
+    def remap(g, axis, src, dst):
+        def f(x, y, z=None):
+            x, y = np.atleast_1d(x).astype(float), np.atleast_1d(y).astype(float)
+            c = x if axis == 0 else y
+            c = np.where(np.isin(np.round(c, 6), src), dst, c)
+            return (c, y) if axis == 0 else (x, c)
+        return transform(f, g).buffer(0)
+
+    for axis in (0, 1):
+        vals = sorted({round(c[axis], 6) for p in pages for q in as_polys(p["own"]) for c in q.exterior.coords})
+        groups, cur = [], [vals[0]]
+        for v in vals[1:]:
+            if v - cur[-1] < SNAP:
+                cur.append(v)
+            else:
+                groups.append(cur)
+                cur = [v]
+        groups.append(cur)
+        for g in groups:
+            if len(g) < 2:
                 continue
-            x0, y0, x1, y1 = inter.bounds
-            horiz = (x1 - x0) >= (y1 - y0)
-            cands = []
-            for k in range(3, 38):
-                f = k / 40
-                pt = (x0 + f * (x1 - x0), (y0 + y1) / 2) if horiz else ((x0 + x1) / 2, y0 + f * (y1 - y0))
-                if all(Point(pt).distance(ln) >= MARK_CLEAR for ln in lines):
-                    cands.append((f, pt))
-            chosen = []
-            for t in (0.15, 0.5, 0.85):
-                free = [c for c in cands if c[1] not in chosen]
-                if free:
-                    chosen.append(min(free, key=lambda c: abs(c[0] - t))[1])
-            marks += chosen
-    # drop marks that crowd another (where two overlap strips meet)
-    kept = []
-    for m in marks:
-        if all(Point(m).distance(Point(k)) >= 0.6 for k in kept):
-            kept.append(m)
-    return kept
+            for dst in g:
+                owns = [remap(p["own"], axis, g, dst) for p in pages]
+                if ok(owns):
+                    for p, o in zip(pages, owns):
+                        p["own"] = o
+                    break
 
 
-def mini_map(pg, pages, current, x0, y0, scale=0.09):
+def mini_map(pg, pages, current, x0, y0, scale):
     allx = [v for p in pages for v in (p["rect"].bounds[0], p["rect"].bounds[2])]
     ally = [v for p in pages for v in (p["rect"].bounds[1], p["rect"].bounds[3])]
     ox, oy = min(allx), min(ally)
     for i, p in enumerate(pages):
-        a, b, c, d = p["rect"].bounds
-        pg.add_patch(plt.Rectangle((x0 + (a - ox) * scale, y0 + (b - oy) * scale), (c - a) * scale, (d - b) * scale,
-                                   fill=i == current, facecolor="0.6", edgecolor="black", lw=0.5))
-        pg.text(x0 + ((a + c) / 2 - ox) * scale, y0 + ((b + d) / 2 - oy) * scale, str(i + 1),
-                fontsize=5, ha="center", va="center")
-    return (max(allx) - ox) * scale, (max(ally) - oy) * scale
+        for q in as_polys(p["own"]):
+            xy = [(x0 + (x - ox) * scale, y0 + (y - oy) * scale) for x, y in q.exterior.coords]
+            pg.add_patch(plt.Polygon(xy, closed=True, fill=i == current, facecolor="0.6", edgecolor="black", lw=0.5))
+        c = p["own"].representative_point()
+        pg.text(x0 + (c.x - ox) * scale, y0 + (c.y - oy) * scale, str(i + 1), fontsize=5, ha="center", va="center")
 
 
 def main(dxf, out, name):
@@ -136,16 +167,22 @@ def main(dxf, out, name):
     if not found:
         raise SystemExit("no layout found")
 
-    pages = []
+    # each page owns its rectangle minus the pages placed before it (search order),
+    # trimmed to a box around the piece so no page carries empty paper
+    pages, taken = [], None
     for (sname, pw, ph, w, h), x, y in found:
-        # real printable area = core grown by OVERLAP/2 on every side
-        rect = box(x - OVERLAP / 2, y - OVERLAP / 2, x + w + OVERLAP / 2, y + h + OVERLAP / 2)
-        pages.append({"orient": sname, "pw": pw, "ph": ph, "rect": rect})
+        rect = box(x, y, x + w, y + h)
+        own = rect if taken is None else rect.difference(taken)
+        taken = rect if taken is None else taken.union(rect)
+        pages.append({"orient": sname, "pw": pw, "ph": ph, "rect": rect, "own": own})
+    hull = box(*shape.bounds)
+    for p in pages:
+        p["own"] = p["own"].intersection(hull).buffer(0)
+    snap_edges(pages, shape)
+    pages = [p for p in pages if p["own"].area > 1e-3]
     # number pages top-to-bottom, then left-to-right
-    pages.sort(key=lambda p: (-round(p["rect"].bounds[3], 1), p["rect"].bounds[0]))
+    pages.sort(key=lambda p: (-round(p["own"].bounds[3], 1), p["own"].bounds[0]))
 
-    lines = [LineString(poly(db[h])) for h in PIECES[name]]
-    marks = overlap_marks(pages, lines)
     cfg = Configuration(background_policy=BackgroundPolicy.WHITE, color_policy=ColorPolicy.BLACK,
                         min_lineweight=0.3)
     Path(out).parent.mkdir(parents=True, exist_ok=True)
@@ -163,19 +200,24 @@ def main(dxf, out, name):
             Frontend(RenderContext(doc), MatplotlibBackend(ax), config=cfg).draw_layout(
                 doc.modelspace(), finalize=False, filter_func=lambda e: e.dxf.handle in keep
             )
+            # clip the pattern to the region this page owns
+            clip = PathPatch(MplPath.make_compound_path(*[MplPath(list(q.exterior.coords), closed=True)
+                                                           for q in as_polys(p["own"])]),
+                             transform=ax.transData, visible=False)
+            ax.add_patch(clip)
+            for art in list(ax.get_children()):
+                if art is not ax.patch and art is not clip and hasattr(art, "set_clip_path"):
+                    art.set_clip_path(clip)
+            draw_region(ax, p["own"], color="black", lw=CUT_LW, solid_capstyle="projecting", clip_on=False)
             ax.set_xlim(a, c)
             ax.set_ylim(b, d)
             ax.set_aspect("equal")
             ax.axis("off")
-            for mx, my in marks:
-                if a <= mx <= c and b <= my <= d:
-                    draw_mark(ax, mx, my)
-            pg.add_patch(plt.Rectangle((MARGIN, MARGIN), c - a, d - b, fill=False, lw=0.3, ls=(0, (2, 2))))
             pg.text(MARGIN, ph - MARGIN + 0.32,
                     f"{name} 14OZ  -  page {i + 1} of {len(pages)} ({p['orient']})  -  {Path(dxf).stem}",
                     fontsize=8, va="bottom")
             pg.text(MARGIN, ph - MARGIN + 0.12,
-                    "Print at 100% / Actual size. Overlap pages so the circle-cross marks and lines match, then tape.",
+                    "Print at 100% / Actual size. Cut exactly on the solid border, butt the edges together, tape.",
                     fontsize=6, va="bottom")
             allw = max(q["rect"].bounds[2] for q in pages) - min(q["rect"].bounds[0] for q in pages)
             allh = max(q["rect"].bounds[3] for q in pages) - min(q["rect"].bounds[1] for q in pages)
@@ -184,20 +226,20 @@ def main(dxf, out, name):
             margin_rulers(pg)
             pdf.savefig(fig)
             plt.close(fig)
-            print(f"page {i + 1}: {p['orient']}, drawing x {a:.2f}..{c:.2f}  y {b:.2f}..{d:.2f}")
+            print(f"page {i + 1}: {p['orient']}, owns x {p['own'].bounds[0]:.2f}..{p['own'].bounds[2]:.2f}"
+                  f"  y {p['own'].bounds[1]:.2f}..{p['own'].bounds[3]:.2f}")
 
     # checks
-    from shapely.ops import unary_union
-    covered = unary_union([box(*q["rect"].bounds).buffer(-PAD) for q in pages])
-    print(f"check: {name} fully inside the printed areas with {PAD}\" clearance:",
-          covered.buffer(1e-6).contains(Polygon(poly(db[PIECES[name][0]]))))
-    for i in range(len(pages)):
-        for j in range(i + 1, len(pages)):
-            inter = pages[i]["rect"].intersection(pages[j]["rect"])
-            if not inter.is_empty and inter.area > 0.05:
-                x0, y0, x1, y1 = inter.bounds
-                print(f"  pages {i + 1}+{j + 1} overlap strip: {min(x1 - x0, y1 - y0):.2f}\" wide")
-    print(f"{name}: {len(pages)} pages, {len(marks)} alignment marks")
+    owns = [p["own"] for p in pages]
+    covered = unary_union(owns)
+    print(f"check: {name} fully covered by the pages with {PAD}\" clearance:",
+          covered.buffer(1e-6).contains(shape.buffer(-1e-6)))
+    worst = max((owns[i].intersection(owns[j]).area for i in range(len(owns)) for j in range(i + 1, len(owns))), default=0)
+    print(f"check: pages do not overlap (largest shared area {worst:.2e} sq in)")
+    for k, p in enumerate(pages):
+        spill = p["own"].difference(p["rect"]).area
+        print(f"check: page {k + 1} region inside its printable area: {spill < 1e-4} (spill {spill:.2e} sq in)")
+    print(f"{name}: {len(pages)} pages, butt joins")
 
 
 if __name__ == "__main__":
