@@ -56,6 +56,10 @@ python scripts/chone_mould_relation.py "dxf/Laces Boxing 14OZ (1).dxf" renders/c
 python scripts/scale_palm.py "dxf/Laces Boxing 14OZ (1).dxf" "dxf/Laces Boxing 14OZ - palm 96%.dxf" 0.96
 python scripts/scale_cuff.py "dxf/Laces Boxing 14OZ - palm 96%.dxf" "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf"
 python scripts/scale_chone.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - chone 105%.dxf" 1.05
+python scripts/scale_chone.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - chone 102%.dxf" 1.02
+python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - chone 102%.dxf" renders/palm-over-chone-with-cuff-102.png
+python scripts/scale_chone.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - chone 103%.dxf" 1.03
+python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - chone 103%.dxf" renders/palm-over-chone-with-cuff-103.png
 
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm 96%.dxf" print/thumb-and-palm-A4.pdf
 

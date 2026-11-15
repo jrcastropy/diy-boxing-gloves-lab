@@ -8,7 +8,7 @@ PNG images of the pattern made by the scripts in [`../scripts/`](../scripts/). T
 | `full-layout.png` | The whole pattern sheet, from the original DXF | not made by a script in this repo |
 | `chone-with-cuff.png` | The Chone Cuff joined to the bottom of the Chone | `join_chone_cuff.py` |
 | `palm-over-chone-with-cuff.png` | The Front Palm laid over the joined back | `overlay_palm.py` |
-| `palm-over-chone-with-cuff-105.png` (and `-110`, `-115`, `-120`) | The same, using the scaled Chone test patterns | `overlay_palm.py` |
+| `palm-over-chone-with-cuff-105.png` (and `-102`, `-103`, `-110`, `-115`, `-120`) | The same, using the scaled Chone test patterns | `overlay_palm.py` |
 | `palm-over-chone-with-cuff-95.png` (and `-96`, `-97`) | The 95% (or 96%, 97%) Front Palm over the original Chone and matched Cuff, from the matching `palm+thumb` DXF | `overlay_palm.py` |
 | `thumb-seam-compare.png` | The two edges of the Thumb seam, straightened side by side | `compare_thumb_seam.py` |
 | `chone-vs-mould1.png` | Mould 1 inside the Chone at 100/110/115/120%, coloured by how much room is left to wrap the foam | `chone_vs_mould.py` |
