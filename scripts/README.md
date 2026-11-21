@@ -24,6 +24,7 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | `scale_palm.py` | Saves a copy of the DXF with the Front Palm scaled. Nothing else changes. |
 | `scale_cuff.py` | Scales the Chone Cuff so its top outer edge is exactly as long as the Chone's bottom outer edge. |
 | `scale_chone.py` | Scales the Chone and the Chone Cuff by the same amount, so they still match. |
+| `grow_mould_thumb.py` | Lines up Mould 1's thumb in the Chone's thumb (flat, from the DXF) and moves the thumb edge out by a fraction of the gap to the Chone stitch line (0.5 = half). The rest of Mould 1 stays the same. Refuses to overwrite an existing file. |
 | `scale_palm_thumb.py` | Scales the Front Palm and the Thumb by the same amount, so the Thumb seam stays matched. Refuses to overwrite an existing file. |
 
 ## Printing
@@ -76,6 +77,8 @@ python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" print/t
 python scripts/overlay_palm.py "dxf/Laces Boxing 14OZ - palm+thumb 97%.dxf" renders/palm-over-chone-with-cuff-97.png
 python scripts/print_pdf.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-cuff-105-A4.pdf "Chone Cuff"
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - chone 105%.dxf" print/chone-105-A4-tiled-butt.pdf "Chone"
+
+python scripts/grow_mould_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - mould1 thumb half gap v2.dxf" renders/mould1-thumb-half-gap-v2.png 0.5
 
 python scripts/export_3d.py "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
 
