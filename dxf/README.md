@@ -16,5 +16,6 @@ The scale bar drawn on the sheet doesn't match the file's units, so use the file
 | `Laces Boxing 14OZ - chone 115%.dxf` | The same at 115% | `scripts/scale_chone.py` |
 | `Laces Boxing 14OZ - chone 120%.dxf` | The same at 120% | `scripts/scale_chone.py` |
 | `Mould from Chone - 1in foam.dxf` | **Not a full sheet.** One foam mould designed to fit the original (100%) Chone, for 1" foam. Layer `MOULD` is the mould; layer `CHONE_STITCH_REF` is the Chone's stitch line, for reference. Drawn the same way round as the Chone (the original moulds are mirrored), with the origin at the middle of the Chone's wrist edge. | `scripts/mould_from_chone.py` |
+| `Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all.dxf` | **Latest Mould 1.** Mould 1 as the minified Chone, thumb reshaped by hand in the viewer's Edit pattern tab, then the whole outline smoothed: 172 smooth curves, a straight level bottom edge and two sharp bottom corners. Only Mould 1 differs from `mould1 minified chone.dxf`. A4 print: `print/mould1-smoothed-A4-tiled-butt.pdf`. | viewer Edit pattern, then smoothing ([`../docs/outline-smoothing.md`](../docs/outline-smoothing.md)) |
 
 The Chone is scaled because, at 100%, it's too small to cover the 2" of foam. See "The Chone is too small" in [`../PATTERN-NOTES.md`](../PATTERN-NOTES.md).

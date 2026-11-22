@@ -91,6 +91,7 @@ python scripts/grow_mould_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matche
 python scripts/turn_mould_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - mould1 thumb chone angle.dxf" renders/mould1-thumb-chone-angle.png
 python scripts/mould1_from_chone_scaled.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders/mould1-minified-chone.png
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" print/mould1-minified-chone-A4-tiled-butt.pdf "Mould 1"
+python scripts/print_free.py "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all.dxf" print/mould1-smoothed-A4-tiled-butt.pdf "Mould 1"
 python scripts/narrow_mould_thumb.py "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb -0.25in.dxf" renders/mould1-minified-chone-thumb-narrow-0.25in.png 0.25
 python scripts/lengthen_mould_thumb.py preview-in-chone "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders 0.25 0.5 0.75
 python scripts/slim_mould_thumb.py write "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone slim 0.125in each side.dxf" renders/mould1-minified-chone-slim-0.125in-each-side.png 0.125
