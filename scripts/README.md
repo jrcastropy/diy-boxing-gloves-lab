@@ -28,6 +28,8 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | `turn_mould_thumb.py` | Turns Mould 1's thumb about the middle of its base so its centre line points at the same angle as the Chone's thumb (flat, from the DXF, with the wrist edge on the Chone's wrist stitch line). The notch, wrist corner and the rest of Mould 1 stay put, and the Chone doesn't change. Refuses to overwrite an existing file. |
 | `mould1_from_chone_scaled.py` | Replaces Mould 1 with the Chone cut line scaled evenly to Mould 1's area (mirrored, wrist edge on Mould 1's wrist edge), so every angle matches the Chone. Refuses to overwrite an existing file. |
 | `narrow_mould_thumb.py` | Makes Mould 1's thumb narrower by a set amount in inches, both edges moving in evenly toward the thumb's centre line. The thumb keeps its length; the notch, wrist corner and the rest of Mould 1 stay put. Refuses to overwrite an existing file. |
+| `lengthen_mould_thumb.py` | Makes Mould 1's thumb longer by a set amount, stretched evenly along the line from the middle of the thumb's neck to its tip. The neck, the wrist corner and the rest of Mould 1 stay put. `preview` and `preview-in-chone` modes draw options without writing a DXF; `write` makes the DXF. Refuses to overwrite an existing file. |
+| `swap_config_outline.py` | Copies a viewer config and swaps one item's outline (one that came in through the DXF import) for the same piece from another DXF. It finds the import's mirror and shift by matching the old DXF, so the new outline lands in the same place. Bends, poses and the other items are kept. Refuses to overwrite an existing file. |
 | `scale_palm_thumb.py` | Scales the Front Palm and the Thumb by the same amount, so the Thumb seam stays matched. Refuses to overwrite an existing file. |
 
 ## Printing
@@ -86,6 +88,10 @@ python scripts/turn_mould_thumb.py "dxf/Laces Boxing 14OZ - palm 96% cuff matche
 python scripts/mould1_from_chone_scaled.py "dxf/Laces Boxing 14OZ - palm 96% cuff matched.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders/mould1-minified-chone.png
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" print/mould1-minified-chone-A4-tiled-butt.pdf "Mould 1"
 python scripts/narrow_mould_thumb.py "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb -0.25in.dxf" renders/mould1-minified-chone-thumb-narrow-0.25in.png 0.25
+python scripts/lengthen_mould_thumb.py preview-in-chone "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders 0.25 0.5 0.75
+python scripts/lengthen_mould_thumb.py write "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb +0.25in.dxf" renders/mould1-minified-chone-thumb-longer-0.25in.png 0.25
+python scripts/lengthen_mould_thumb.py write "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb +0.5in.dxf" renders/mould1-minified-chone-thumb-longer-0.5in.png 0.5
+python scripts/lengthen_mould_thumb.py write "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb +0.75in.dxf" renders/mould1-minified-chone-thumb-longer-0.75in.png 0.75
 
 python scripts/export_3d.py "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
 

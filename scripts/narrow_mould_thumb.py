@@ -5,8 +5,9 @@ the crotch notch to the thumb's wrist corner; its centre line is the long axis o
 area. Every thumb outline point moves straight toward the centre line (square to it) by
 half of NARROW, so the top and bottom edges each come in by NARROW/2. Points close to
 the centre line (the tip) move less, so the tip stays round and the thumb keeps its
-length. The move eases in over EASE inches out from the base line, so the notch, the
-wrist corner and the rest of Mould 1 stay put. The thumb's angle doesn't change.
+length. The move eases in over EASE inches along the outline from the crotch notch and
+from the wrist corner, so those two points and the rest of Mould 1 stay put. Both edges
+keep their direction.
 
 Writes a copy of the DXF (Mould 1 replaced in place, same handle) and a check render.
 Refuses to overwrite an existing file.

@@ -25,6 +25,10 @@ uv run --with ezdxf --with shapely --with matplotlib --with scipy \
   python scripts/export_3d.py "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
 ```
 
+## Trying a new DXF version of a piece
+
+To test a new version of a piece with all your bend lines and settings, go to the **Items** tab, choose the item and click **Replace outline from DXF…**. Choose the new DXF. The dialog picks the outline in it that lines up best with the item, and you can click a different one. It works out the mirroring and turn for you and places the new outline so the parts that didn't change sit exactly where they were. If it's a changed Mould 1 thumb, only the thumb moves. Bend lines, position, thickness and the other items all stay. For a leather item you can also pick its stitch line. **Undo** (⌘Z) puts the old outline back. Save the result under a new config name to keep both versions.
+
 ## Saving your setup
 
 The viewer remembers your last setup in your browser. To keep a setup or move it to another machine, use the **Config** tab. Click **Choose folder…** once and pick `viewer/config/`. The box then shows the folder, and the page remembers it across reloads. After that, **Save config** writes the file (named in the **File name** box) straight into that folder with no dialog, and asks before replacing a file. **Load config…** opens the picker in that folder. After a reload, Chrome may ask once to let the page edit the folder again. Safari and Firefox can't pick a folder, so Save downloads the file instead. `viewer/config/` is git-ignored, so copy a config file across yourself to use it on another machine.
