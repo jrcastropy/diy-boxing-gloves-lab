@@ -8,6 +8,7 @@ exact same mirror + shift, so the parts that didn't change land exactly where th
 The item's pose is kept as it is, adjusted for the outline's new centre when the pose turns
 or scales the item (the viewer turns and scales about that centre).
 
+The copy also gets the item's new DXF link (see dxf_link.py), which the viewer needs.
 Refuses to overwrite an existing file.
 
 Usage: python scripts/swap_config_outline.py CONFIG ITEM_KEY OLD_DXF NEW_DXF OUT_CONFIG [HANDLE]
@@ -83,6 +84,13 @@ def main(cfg_path, key, old_dxf, new_dxf, out, handle="320"):
         print(f"pose x, y adjusted to {p['x']}, {p['y']} (outline centre moved {d.round(4)})")
 
     item["outline"] = ring
+    # the viewer needs every item's DXF link (dxf_link.py): which piece of NEW_DXF this is, and its outline
+    from dxf_link import REPO, find_source
+    got = find_source(ring, [str(Path(new_dxf).resolve().relative_to(REPO))]) or \
+        find_source(ring, [str(Path(new_dxf).resolve().relative_to(REPO))], allow_turn=True)
+    if not got:
+        sys.exit(f"couldn't link {key} to its piece in {new_dxf}")
+    item["source"], item["path"] = got
     cfg.pop("savedAt", None)
     json.dump(cfg, open(out, "w"), indent=1)
     print(f"Saved {out}: {key} now from {Path(new_dxf).name} ({len(ring)} points, area {Polygon(ring).area:.2f} sq in, "

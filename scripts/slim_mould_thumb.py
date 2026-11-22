@@ -6,9 +6,9 @@ runs from the middle of the neck to the tip. The thumb edge past the neck moves 
 (square to the outline) by SIDE inches all the way round, so the tip stays a round curve,
 then slides back out along the centre line (nothing at the neck, SIDE at the tip) so the
 tip ends up exactly where it was: the thumb is 2 x SIDE narrower and keeps its length.
-The move eases in over EASE inches along the outline from the notch
-and from the bottom end of the neck, so the neck, the bottom edge down to the wrist and
-the rest of Mould 1 stay put.
+On the top edge the move eases in over EASE inches out from the crotch. On the bottom edge
+it's the full amount down to the neck, then fades out over FADE inches toward the wrist, so
+the thumb is fully narrower right from the neck without a step. The rest of Mould 1 stays put.
 
 Preview (no DXF written): one image per DXF and amount, laid inside the Chone like
 renders/mould1-minified-chone.png, with the DXF's own Mould 1 drawn behind in grey.
@@ -36,17 +36,27 @@ from narrow_mould_thumb import widths  # noqa: E402
 from render_pieces import poly  # noqa: E402
 
 STEP = 0.02  # inches between outline samples (as load() makes them)
-EASE = 1.5  # inches along the outline over which the move eases in at the notch and at the bottom of the neck
+EASE = 0.4  # top edge: inches out from the crotch (past the neck line) over which the move eases in
+FADE = 1.5  # bottom edge: inches along it, past the neck toward the wrist, over which the move fades out
 
 
 def slim(M, side):
     mn, mc, arc, i_neck, i_tip, m, a = thumb(M)
     k_neck = int(np.where(arc == i_neck)[0][0])
     part = arc[: k_neck + 1]  # notch -> tip -> bottom of the neck
-    s = np.arange(len(part)) * STEP
+    # how far each point is out past the neck line (0 at both ends of the neck), toward the tip
+    u = M[i_neck] - M[mn]
+    nrm = np.array([u[1], -u[0]]) / np.linalg.norm(u)
+    if nrm @ (M[i_tip] - m) < 0:
+        nrm = -nrm
     w = np.zeros(len(M))
-    e = np.clip(np.minimum(s, s[-1] - s) / EASE, 0, 1)
-    w[part] = 0.5 - 0.5 * np.cos(math.pi * e)
+    k_tip = int(np.where(arc == i_tip)[0][0])
+    top, bottom, wrist = arc[:k_tip], arc[k_tip:k_neck + 1], arc[k_neck + 1:]
+    e = np.clip(((M[top] - m) @ nrm) / EASE, 0, 1)  # top edge: in from the crotch over EASE
+    w[top] = 0.5 - 0.5 * np.cos(math.pi * e)
+    w[bottom] = 1.0  # bottom edge: the full amount right down to the neck ...
+    d = np.arange(1, len(wrist) + 1) * STEP  # ... then fading out along the edge toward the wrist
+    w[wrist] = 0.5 + 0.5 * np.cos(math.pi * np.clip(d / FADE, 0, 1))
     # 1) the thumb edge moves inward (square to the outline) by `side`, so the round tip stays round
     tang = np.roll(M, -3, 0) - np.roll(M, 3, 0)
     inward = np.c_[-tang[:, 1], tang[:, 0]]  # outline runs counter-clockwise, so inward is to its left
@@ -77,7 +87,8 @@ def base_name(src):
     return Path(src).stem.split(" - ", 1)[1].replace(" +", "+").replace(" ", "-")
 
 
-def figure(C, S, M, N, info, shift, side, src, len0, len1, st, w0, w1, title):
+def figure(C, S, M, N, info, shift, side, src, len0, len1, st, w0, w1, title, ticks=None):
+    """ticks: the new outline sampled like M (for the width ticks); N is what's drawn."""
     fig, ax = plt.subplots(figsize=(8, 9))
     ax.plot(*np.vstack([C, C[:1]]).T, "k", lw=1, label="Chone cut line")
     ax.plot(*np.vstack([S, S[:1]]).T, "k--", lw=0.8, label="Chone stitch line")
@@ -85,7 +96,7 @@ def figure(C, S, M, N, info, shift, side, src, len0, len1, st, w0, w1, title):
     ax.plot(*(np.vstack([N, N[:1]]) + shift).T, color="orange", lw=2, label=f"Thumb {side:g}\" narrower each side ({2 * side:g}\" in all)")
     m, a = info["m"] + shift, info["a"]
     p = np.array([-a[1], a[0]])
-    arcN = LineString(N[info["arc"]] + shift)
+    arcN = LineString((N if ticks is None else ticks)[info["arc"]] + shift)
     lines = []
     for k, (t, x0, x1) in enumerate(zip(st, w0, w1), 1):
         c = m + a * t
@@ -153,7 +164,7 @@ def write(src, dst, png, side):
     shift = wrist_mid(C) + [0, 0.3] - wrist_mid(M)
     fig = figure(C, S, M, Sv, info, shift, side, src, len0, len1, st, w0, w1,
                  f"Mould 1 thumb {side:g}\" narrower each side (from the saved DXF), neck to tip {len0:.2f}\" → {len1:.2f}\"\n"
-                 f"{Path(src).name}, flipped back, wrist middles together, raised 0.3\"")
+                 f"{Path(src).name}, flipped back, wrist middles together, raised 0.3\"", ticks=N)
     fig.savefig(png, dpi=100, bbox_inches="tight")
 
 

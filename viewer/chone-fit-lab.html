@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
 <title>Chone Fit Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -118,7 +120,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
 /* Tabs */
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .tab { border: 1px solid transparent; background: none; color: var(--muted); border-radius: 6px; padding: 6px 4px; font: 600 15px var(--font-display); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .tab:hover { color: var(--fg); }
 .tab[aria-selected="true"] { color: var(--fg); background: var(--bg); border-color: var(--line); }
@@ -142,7 +144,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .dlg .body { display: flex; flex-direction: column; gap: 10px; }
 .impcanvas { width: 100%; height: min(52vh, 460px); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); display: block; cursor: pointer; touch-action: none; }
 .formrow { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+/* Edit pattern: the panel widens so the outline can be worked on at a useful size */
+.app.wide { grid-template-columns: minmax(0, 1fr) min(640px, 50vw); }
+.editcv { width: 100%; height: min(62vh, 620px); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); touch-action: none; cursor: grab; display: block; }
 @media (max-width: 820px) {
+  .app.wide { grid-template-columns: minmax(0, 1fr); }
   html, body { height: auto; }
   .app { grid-template-columns: minmax(0, 1fr); height: auto; }
   .stage { height: 62vh; min-height: 360px; }
@@ -182,6 +188,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <nav class="tabs" role="tablist" aria-label="Panel">
       <button class="tab" role="tab" data-tab="items" aria-controls="tab-items">Items</button>
       <button class="tab" role="tab" data-tab="flat" aria-controls="tab-flat">Pattern &amp; bends</button>
+      <button class="tab" role="tab" data-tab="edit" aria-controls="tab-edit">Edit pattern</button>
       <button class="tab" role="tab" data-tab="config" aria-controls="tab-config">Config</button>
     </nav>
 
@@ -259,6 +266,28 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <button class="btn" id="draw3d">Draw on 3D</button>
         <button class="btn" id="flatten">Flatten all</button>
         <button class="btn danger" id="reset">Delete all lines</button>
+      </div>
+    </section>
+
+    <section class="tabpanel" id="tab-edit" role="tabpanel" aria-label="Edit pattern" hidden>
+      <div class="pickrow"><span>Editing</span><div class="layers" id="editWhich"></div></div>
+      <div class="stack" id="editBox">
+        <p class="note" id="editSrc"></p>
+        <canvas class="editcv" id="editCanvas" aria-label="The chosen item's outline. Click the outline to add a point; drag points, handles or the line between two points to reshape it."></canvas>
+        <p class="note" id="editMsg"></p>
+        <p class="note" id="editStats"></p>
+        <div class="btns">
+          <button class="btn" id="editFit">Fit to view</button>
+          <button class="btn danger" id="editDelPt" disabled>Delete point</button>
+          <label class="check"><input type="checkbox" id="editShowBase" checked> Show the DXF outline (dashed)</label>
+        </div>
+        <p class="note">Like a pen tool. <b>Click the outline</b> to add a point. Between two points you can: <b>drag the line</b> to curve it, <b>drag a point</b> to move it (the line to the next point stretches to follow; on a long stretch only the 2" beside the point bends, the rest stays put), or drag a point's <b>handles</b> to change how the curve leaves it. <kbd>Alt</kbd>-drag a handle to break it into a corner. Select a point and press <kbd>Delete</kbd> to remove it. Drag the background to pan, scroll to zoom. The 3D view follows as you go; ⌘Z undoes.</p>
+        <div class="btns">
+          <button class="btn save" id="editSaveAs">Save as new DXF…</button>
+          <button class="btn" id="editOverwrite">Overwrite the DXF</button>
+          <button class="btn reset" id="editReset">Reset to the DXF outline</button>
+        </div>
+        <p class="note">Saving writes a copy of the DXF the item came from with only this piece's outline changed, exactly as shown (labels, notches and the other pieces stay). The item is then linked to the saved file.</p>
       </div>
     </section>
 
@@ -366,6 +395,8 @@ function createPiece(def) {
   const p = makePiece(def.key, src, {
     label: def.label || b?.label || 'Item', kind, builtin: def.builtin || null, col: def.col || b?.col || PALETTE[0],
     outline: b ? null : def.outline, stitchSrc: b ? null : def.stitch || null,
+    path: def.path ? clonePath(def.path) : b && D[def.builtin].path ? clonePath(D[def.builtin].path) : null,
+    source: def.source ? { ...def.source } : b && D[def.builtin].source ? { ...D[def.builtin].source } : null,
     scaleOrigin: !!b?.scaleOrigin, wristY: b?.wristY ?? -Infinity,
     thick: KINDS[kind].thick, opacity: KINDS[kind].opacity, drape: 0, edgeR: 0, target: 2,
     z0: 0, z1: 1, neutral: 0.5,
@@ -1408,11 +1439,13 @@ function chipText(h) { return `${h.name} · ${h.angle}°` + (h.twist ? ` ↻${h.
 function selH() { return state.hinges.find(x => x.id === state.selected); }
 
 // ---------------------------------------------------------------- tabs
-const TABS = ['items', 'flat', 'config'];
+const TABS = ['items', 'flat', 'edit', 'config'];
 function setTab(t) {
   if (t === 'bends') t = 'flat'; // Flat pattern and Bend lines used to be separate tabs
   if (!TABS.includes(t)) t = 'items';
   for (const k of TABS) { $('tab-' + k).hidden = k !== t; document.querySelector(`.tab[data-tab="${k}"]`).setAttribute('aria-selected', String(k === t)); }
+  document.querySelector('.app').classList.toggle('wide', t === 'edit');
+  if (t === 'edit') { if (!P[edit.key]) edit.key = chosen()?.key ?? null; edit.view = null; renderEditItems(); syncEditBox(); requestAnimationFrame(sizeEdit); }
   try { localStorage.setItem('chone-fit-lab-tab', t); } catch (e) { /* fine */ }
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -1598,8 +1631,11 @@ $('noOverlap').addEventListener('change', e => { state.noOverlap = e.target.chec
 const KEY = 'chone-fit-lab-v2';
 let booted = false;
 const geomSig = d => d.kind + '|' + (d.builtin || JSON.stringify(d.outline) + '|' + JSON.stringify(d.stitch || null));
+// An item's pen-tool path, copied without the cached curve fits.
+function clonePath(path) { return path && { anch: !!path.anch, base: path.base, segs: path.segs.map(sg => ({ kind: sg.kind, corner: !!sg.corner, bz: sg.bz })) }; }
 function itemSnap(p) {
   return { key: p.key, label: p.label, kind: p.kind, ...(p.builtin ? { builtin: p.builtin } : { outline: p.outline, stitch: p.stitchSrc || undefined }), col: p.col,
+    path: clonePath(p.path), source: p.source ? { ...p.source } : null,
     thick: p.thick, opacity: p.opacity, show: !!state.show[p.key], pose: { ...p.pose },
     ...(isLeather(p) ? { drape: p.drape, edgeR: p.edgeR, target: p.target } : {}) };
 }
@@ -1645,6 +1681,8 @@ function applyConfig(s0) {
       p.sig = want.get(d.key); addPiece(p);
     }
     order.push(p);
+    if (d.path) p.path = clonePath(JSON.parse(JSON.stringify(d.path)));
+    if (d.source) p.source = { ...d.source };
     if (typeof d.label === 'string' && d.label.trim()) p.label = d.label.trim().slice(0, 40);
     if (typeof d.col === 'string' && d.col) p.col = d.col;
     p.thick = fin(d.thick) && d.thick > 0 ? d.thick : KINDS[p.kind].thick;
@@ -1707,6 +1745,7 @@ function undo() {
   const h = state.hinges[u.sel];
   select(h && lineVisible(h) ? h.id : null);
   save(); syncUndo();
+  if (!$('tab-edit').hidden) { edit.sel = -1; renderEditItems(); syncEditBox(); drawEdit(); }
 }
 $('undo').addEventListener('click', undo);
 addEventListener('keydown', e => {
@@ -1815,16 +1854,21 @@ try { const n = localStorage.getItem(CFG_NAME_KEY); if (n) $('cfgName').value = 
 showCfgDir();
 if (canPickDir) getCfgDir().then(h => { if (h) { cfgDir = h; showCfgDir(); } });
 $('cfgFile').addEventListener('change', e => { const file = e.target.files[0]; e.target.value = ''; if (file) loadConfigFile(file); });
+// Every item in a config has to say which DXF piece it is (source) and carry that piece's outline (path).
+// Configs from before that are refused: run scripts/link_configs.py on them to add it.
+const linkedDef = d => !!(d && d.source && typeof d.source.file === 'string' && d.source.handle && d.path && Array.isArray(d.path.segs));
+const linkedConfig = s => !!(s && Array.isArray(s.items) && s.items.length && s.items.every(linkedDef));
 async function loadConfigFile(file) {
   try {
     const s = JSON.parse(await file.text());
     if (!s || typeof s !== 'object' || !Array.isArray(s.hinges)) throw new Error('not a Chone Fit Lab config (no bend lines)');
+    if (!linkedConfig(s)) throw new Error('it\'s from before items remembered which DXF they came from. Add that with: uv run --with ezdxf --with shapely --with scipy --with matplotlib python scripts/link_configs.py "viewer/config/' + file.name + '"');
     checkpoint(); applyConfig(s); save();
     cfgStatus(`Loaded ${file.name}${s.savedAt ? `, saved ${new Date(s.savedAt).toLocaleString()}` : ''}. ${PIECES.length} items, ${state.hinges.length} bend lines.`);
   } catch (err) { cfgStatus(`Couldn't load ${file.name}: ${err.message}`, true); }
 }
-function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.hinges)) return s; } catch (e) { }
+function load() { // the last setup in this browser, if it's in the current (linked) form
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.hinges) && linkedConfig(s)) return s; } catch (e) { }
   return null;
 }
 
@@ -1871,12 +1915,13 @@ function parseDXF(text) {
   }
   if (cur) ents.push(cur);
   const num = (g, c) => { const x = g.find(p => p[0] === c); return x ? parseFloat(x[1]) : 0; };
-  const add = (pts, closed) => {
+  const hnd = e => e.g.find(q => q[0] === 5)?.[1] ?? null;
+  const add = (pts, closed, e, verts) => { // e: the DXF entity (for its handle, and to read it exactly when editing)
     if (pts.length < 3) return;
     pts = pts.map(([x, y]) => [x * unit, y * unit]);
     const f = pts[0], l = pts.at(-1), span = Math.hypot(...pts.reduce((m, p) => [Math.max(m[0], Math.abs(p[0] - f[0])), Math.max(m[1], Math.abs(p[1] - f[1]))], [0, 0]));
     if (Math.hypot(f[0] - l[0], f[1] - l[1]) < Math.max(1e-4, span * 1e-4)) { pts.pop(); closed = true; }
-    curves.push({ pts, closed });
+    curves.push({ pts, closed, ent: e, handle: hnd(e), unit, verts });
   };
   let poly = null;
   for (const e of ents) {
@@ -1891,23 +1936,23 @@ function parseDXF(text) {
       }
       const w = wts.length === ctrl.length ? wts : ctrl.map(() => 1);
       const pts = ctrl.length > deg && knots.length === ctrl.length + deg + 1 ? nurbs(deg, knots, ctrl, w, Math.max(64, ctrl.length * 12)) : ctrl.length ? ctrl : fit;
-      add(pts, !!(flags & 1));
+      add(pts, !!(flags & 1), e);
     } else if (e.type === 'LWPOLYLINE') {
       const vs = [];
       for (const [c, v] of g) { if (c === 10) vs.push({ p: [parseFloat(v), 0], b: 0 }); else if (c === 20 && vs.length) vs.at(-1).p[1] = parseFloat(v); else if (c === 42 && vs.length) vs.at(-1).b = parseFloat(v); }
       const closed = !!(num(g, 70) & 1), pts = [];
       for (let k = 0; k < vs.length; k++) { if (k === vs.length - 1 && !closed) { pts.push(vs[k].p); break; } bulgeArc(vs[k].p, vs[(k + 1) % vs.length].p, vs[k].b, pts); }
-      add(pts, closed);
-    } else if (e.type === 'POLYLINE') poly = { closed: !!(num(g, 70) & 1), vs: [] };
+      add(pts, closed, e, vs);
+    } else if (e.type === 'POLYLINE') poly = { closed: !!(num(g, 70) & 1), vs: [], e };
     else if (e.type === 'VERTEX' && poly) poly.vs.push({ p: [num(g, 10), num(g, 20)], b: num(g, 42) });
     else if (e.type === 'SEQEND' && poly) {
       const pts = [], vs = poly.vs;
       for (let k = 0; k < vs.length; k++) { if (k === vs.length - 1 && !poly.closed) { pts.push(vs[k].p); break; } bulgeArc(vs[k].p, vs[(k + 1) % vs.length].p, vs[k].b, pts); }
-      add(pts, poly.closed); poly = null;
+      add(pts, poly.closed, poly.e, vs); poly = null;
     } else if (e.type === 'CIRCLE') {
       const cx = num(g, 10), cy = num(g, 20), r = num(g, 40), pts = [];
       for (let k = 0; k < 72; k++) pts.push([cx + r * Math.cos(k * 5 * DEG), cy + r * Math.sin(k * 5 * DEG)]);
-      add(pts, true);
+      add(pts, true, e);
     }
   }
   for (const c of curves) {
@@ -2039,9 +2084,11 @@ $('impCanvas').addEventListener('click', ev => {
   impStatus(`${imp.file}: ${imp.curves.filter(c => c.pick).length} outlines you can pick.`);
   impHelp(); drawImp();
 });
-async function impLoadFile(file) {
+async function impLoadFile(file, fh = null) {
+  imp.fh = fh;
   try {
-    const curves = parseDXF(await file.text());
+    const text = await file.text(); dxfText.set('dxf/' + file.name, text);
+    const curves = parseDXF(text);
     if (!curves.some(c => c.pick)) throw new Error('no closed outlines of a useful size');
     Object.assign(imp, { curves, outline: -1, stitch: -1, what: 'outline', hover: -1, file: file.name });
     impStatus(`${file.name}: ${curves.filter(c => c.pick).length} outlines you can pick.`);
@@ -2051,7 +2098,7 @@ async function impLoadFile(file) {
 }
 $('impPick').addEventListener('click', async () => {
   if (window.showOpenFilePicker) {
-    try { const [fh] = await window.showOpenFilePicker({ id: 'chone-fit-dxf', multiple: false, types: [{ description: 'DXF pattern', accept: { 'application/dxf': ['.dxf'] } }] }); return impLoadFile(await fh.getFile()); }
+    try { const [fh] = await window.showOpenFilePicker({ id: 'chone-fit-dxf', multiple: false, types: [{ description: 'DXF pattern', accept: { 'application/dxf': ['.dxf'] } }] }); return impLoadFile(await fh.getFile(), fh); }
     catch (e) { if (e.name === 'AbortError') return; }
   }
   $('impFile').click();
@@ -2073,6 +2120,7 @@ $('impAdd').addEventListener('click', () => {
   let n = 0; for (const p of PIECES) { const m = /^item(\d+)$/.exec(p.key); if (m) n = Math.max(n, +m[1]); }
   const def = { key: `item${n + 1}`, label: $('impName').value.trim().slice(0, 40) || `Item ${PIECES.length + 1}`, kind: imp.kind, outline: ring, stitch: stitch || undefined,
     col: PALETTE[PIECES.filter(p => !p.builtin).length % PALETTE.length] };
+  linkDef(def, o, { mirror, rot: 0, ox: mirror ? cx + tx : tx - cx, oy: ty - cy }); // the same move as `map` above
   checkpoint();
   let p;
   try { p = createPiece(def); } catch (e) { impStatus(`Couldn't build that outline: ${e.message}`, true); dropCheckpoint(undoStack.length); return; }
@@ -2194,6 +2242,7 @@ function replaceFromImport() {
   checkpoint();
   const cfg = snapshot(), d = cfg.items.find(i => i.key === t.key);
   delete d.builtin; d.kind = t.kind; d.outline = ring; d.stitch = stitch || undefined; d.pose = pose;
+  delete d.path; delete d.source; linkDef(d, o, m);
   if (!d.label) d.label = t.label;
   const sel = state.hinges.findIndex(h => h.id === state.selected);
   try { applyConfig(cfg); }
@@ -2208,6 +2257,596 @@ function replaceFromImport() {
   $('impDlg').close(); setTab('items');
 }
 $('itemReplace').addEventListener('click', () => openImport('replace'));
+
+// ---------------------------------------------------------------- Edit pattern: a pen tool on an item's outline
+// An item's outline is kept as a closed chain of cubic Béziers, each [p0, c1, c2, p3] in the item's own frame (the
+// frame its pose and the bend lines work in), in inches. It comes straight from the item's DXF piece: a DXF SPLINE
+// splits exactly into cubic Béziers, so the chain IS the DXF curve, and what you see is exactly what gets saved.
+// item.path = { anch, segs: [{ kind, bz, corner }], base } — `anch` false means no points added yet; otherwise
+// each segment runs from one point (anchor) to the next, and anchor k is where segs[k] starts. kind 'orig' = still the
+// DXF curve (many Béziers); kind 'edit' = one Bézier you're shaping with the pen tool. `base` = the DXF chain, for Reset.
+// item.source = { file, handle, unit, mirror, rot, ox, oy } — which DXF piece the outline came from and how it was
+// laid out: DXF point * unit -> (mirror x) -> turned by rot -> moved by (ox, oy). Saving runs that backwards.
+const FIT_TOL = 0.02; // inches: a stretch becomes one editable curve only if one curve keeps its shape this closely
+const lerp2 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]], add2 = (a, b) => [a[0] + b[0], a[1] + b[1]], mul2 = (a, k) => [a[0] * k, a[1] * k];
+const len2 = a => Math.hypot(a[0], a[1]), unit2 = a => { const l = len2(a) || 1; return [a[0] / l, a[1] / l]; };
+function bzAt(b, t) { const u = 1 - t, A = u * u * u, B = 3 * u * u * t, C = 3 * u * t * t, E = t * t * t; return [A * b[0][0] + B * b[1][0] + C * b[2][0] + E * b[3][0], A * b[0][1] + B * b[1][1] + C * b[2][1] + E * b[3][1]]; }
+function bzSplit(b, t) { // de Casteljau: the two halves of b at t
+  const a = lerp2(b[0], b[1], t), c = lerp2(b[1], b[2], t), d = lerp2(b[2], b[3], t), e = lerp2(a, c, t), f = lerp2(c, d, t), g = lerp2(e, f, t);
+  return [[b[0], a, e, g], [g, f, d, b[3]]];
+}
+const bzLen = b => (len2(sub2(b[1], b[0])) + len2(sub2(b[2], b[1])) + len2(sub2(b[3], b[2])) + len2(sub2(b[3], b[0]))) / 2;
+function chainPts(chain, step = 0.03) { // points along a chain (the last end point left off: it's a loop or joins on)
+  const out = [];
+  for (const b of chain) { const n = Math.max(1, Math.ceil(bzLen(b) / step)); for (let s = 0; s < n; s++) out.push(bzAt(b, s / n)); }
+  return out;
+}
+const lineBz = (a, b) => [a, lerp2(a, b, 1 / 3), lerp2(a, b, 2 / 3), b];
+function arcBz(cx, cy, r, a0, a1) { // circle arc as Béziers, each at most 90°
+  const n = Math.max(1, Math.ceil(Math.abs(a1 - a0) / (Math.PI / 2))), out = [];
+  for (let s = 0; s < n; s++) {
+    const t0 = a0 + (a1 - a0) * s / n, t1 = a0 + (a1 - a0) * (s + 1) / n, k = 4 / 3 * Math.tan((t1 - t0) / 4);
+    const p0 = [cx + r * Math.cos(t0), cy + r * Math.sin(t0)], p3 = [cx + r * Math.cos(t1), cy + r * Math.sin(t1)];
+    out.push([p0, [p0[0] - k * r * Math.sin(t0), p0[1] + k * r * Math.cos(t0)], [p3[0] + k * r * Math.sin(t1), p3[1] - k * r * Math.cos(t1)], p3]);
+  }
+  return out;
+}
+function insertKnot(p, U, P, u) { // Boehm: insert knot u once into a non-rational B-spline
+  let k = p; while (k < U.length - p - 2 && U[k + 1] <= u) k++;
+  const Q = [];
+  for (let i = 0; i <= P.length; i++) {
+    if (i <= k - p) Q.push(P[i]);
+    else if (i <= k) { const a = (u - U[i]) / (U[i + p] - U[i] || 1); Q.push(lerp2(P[i - 1], P[i], a)); }
+    else Q.push(P[i - 1]);
+  }
+  return [U.slice(0, k + 1).concat([u], U.slice(k + 1)), Q];
+}
+// A DXF piece (one entry of parseDXF's curves) as a chain of cubic Béziers in inches, or null if it can't be read.
+function entityChain(c) {
+  const e = c.ent, g = e.g, u = c.unit, num = (k) => { const x = g.find(q => q[0] === k); return x ? parseFloat(x[1]) : 0; };
+  const sc = p => [p[0] * u, p[1] * u];
+  let chain = [];
+  if (e.type === 'SPLINE') {
+    const deg = num(71) || 3, U = [], P = [], W = [];
+    for (let k = 0; k < g.length; k++) {
+      const [cc, v] = g[k];
+      if (cc === 40) U.push(parseFloat(v)); else if (cc === 41) W.push(parseFloat(v));
+      else if (cc === 10) P.push([parseFloat(v), 0]); else if (cc === 20 && P.length) P.at(-1)[1] = parseFloat(v);
+    }
+    const m = U.length - 1, clamped = U.length === P.length + deg + 1 && U.slice(0, deg + 1).every(x => x === U[0]) && U.slice(m - deg).every(x => x === U[m]);
+    if (clamped && deg <= 3 && W.every(w => Math.abs(w - 1) < 1e-9)) {
+      let K = U, Q = P;
+      const inner = [...new Set(U.slice(deg + 1, m - deg))];
+      for (const x of inner) { const s = K.filter(y => y === x).length; for (let r = s; r < deg; r++) [K, Q] = insertKnot(deg, K, Q, x); }
+      for (let j = 0; j + deg < Q.length; j += deg) {
+        const s = Q.slice(j, j + deg + 1).map(sc);
+        if (deg === 3) chain.push(s);
+        else if (deg === 2) chain.push([s[0], lerp2(s[0], s[1], 2 / 3), lerp2(s[2], s[1], 2 / 3), s[2]]);
+        else chain.push(lineBz(s[0], s[1]));
+      }
+    }
+  } else if (e.type === 'CIRCLE') {
+    const cx = num(10) * u, cy = num(20) * u, r = num(40) * u; chain = arcBz(cx, cy, r, 0, 2 * Math.PI);
+  } else if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
+    const vs = c.verts || [];
+    for (let k = 0; k < vs.length; k++) {
+      const a = sc(vs[k].p), b = sc(vs[(k + 1) % vs.length].p), bulge = vs[k].b;
+      if (!bulge) { chain.push(lineBz(a, b)); continue; }
+      const th = 4 * Math.atan(bulge), dx = b[0] - a[0], dy = b[1] - a[1], ch = Math.hypot(dx, dy), r = ch / (2 * Math.sin(th / 2));
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, h = r * Math.cos(th / 2), cx = mx - h * dy / ch, cy = my + h * dx / ch;
+      const a0 = Math.atan2(a[1] - cy, a[0] - cx);
+      const arc = arcBz(cx, cy, Math.abs(r), a0, a0 + th); arc[0][0] = a; arc.at(-1)[3] = b; chain.push(...arc);
+    }
+  }
+  if (!chain.length) { // anything else: the traced points, joined by straight lines
+    const pts = c.pts; for (let k = 0; k < pts.length; k++) chain.push(lineBz(pts[k], pts[(k + 1) % pts.length]));
+  }
+  chain = chain.filter(b => bzLen(b) > 1e-7);
+  if (!chain.length) return null;
+  chain.at(-1)[3] = chain[0][0]; // closed
+  return chain;
+}
+const xfPt = (m, [x, y]) => { const c = Math.cos(m.rot), s = Math.sin(m.rot), X = m.mirror ? -x : x; return [X * c - y * s + m.ox, X * s + y * c + m.oy]; };
+const ixfPt = (m, [x, y]) => { const c = Math.cos(m.rot), s = Math.sin(m.rot), a = x - m.ox, b = y - m.oy, X = a * c + b * s, Y = -a * s + b * c; return [m.mirror ? -X : X, Y]; };
+function chainArea(ch) { const p = chainPts(ch, 0.1); let a = 0; for (let k = 0; k < p.length; k++) { const [x, y] = p[k], [u, v] = p[(k + 1) % p.length]; a += x * v - u * y; } return a / 2; }
+const reverseChain = ch => ch.slice().reverse().map(b => [b[3], b[2], b[1], b[0]]);
+// The DXF chain laid out in the item's frame, counter-clockwise.
+function placedChain(chain, m) { let ch = chain.map(b => b.map(p => xfPt(m, p))); if (chainArea(ch) < 0) ch = reverseChain(ch); return ch; }
+const roundChain = ch => ch.map(b => b.map(([x, y]) => [+x.toFixed(6), +y.toFixed(6)]));
+const freshPath = chain => ({ anch: false, segs: [{ kind: 'orig', bz: chain, corner: false }], base: chain });
+const pathChain = path => path.segs.flatMap(s => s.bz);
+const pathRing = path => resampleRing(chainPts(pathChain(path), 0.03), 0.12).map(([x, y]) => [+x.toFixed(4), +y.toFixed(4)]);
+
+// Nearest point on the path to (x, y): { si (segment), bi (Bézier in it), t, pt, d }.
+function locatePath(path, x, y) {
+  let best = null;
+  path.segs.forEach((s, si) => s.bz.forEach((b, bi) => {
+    const n = 12;
+    for (let k = 0; k <= n; k++) { const t = k / n, q = bzAt(b, t), d = Math.hypot(q[0] - x, q[1] - y); if (!best || d < best.d) best = { si, bi, t, pt: q, d }; }
+  }));
+  if (!best) return null;
+  const b = path.segs[best.si].bz[best.bi];
+  let lo = Math.max(0, best.t - 1 / 12), hi = Math.min(1, best.t + 1 / 12);
+  for (let it = 0; it < 30; it++) {
+    const t1 = lo + (hi - lo) / 3, t2 = hi - (hi - lo) / 3, q1 = bzAt(b, t1), q2 = bzAt(b, t2);
+    if (Math.hypot(q1[0] - x, q1[1] - y) < Math.hypot(q2[0] - x, q2[1] - y)) hi = t2; else lo = t1;
+  }
+  best.t = (lo + hi) / 2; best.pt = bzAt(b, best.t); best.d = Math.hypot(best.pt[0] - x, best.pt[1] - y);
+  return best;
+}
+// Add a point (anchor) on the path where `loc` is. Returns its index.
+function addAnchor(path, loc) {
+  const { si, bi, t } = loc, seg = path.segs[si], bz = seg.bz;
+  const cut = () => {
+    if (t < 1e-6) return [bz.slice(0, bi), bz.slice(bi)];
+    if (t > 1 - 1e-6) return [bz.slice(0, bi + 1), bz.slice(bi + 1)];
+    const [A, B] = bzSplit(bz[bi], t); return [bz.slice(0, bi).concat([A]), [B].concat(bz.slice(bi + 1))];
+  };
+  const [first, second] = cut();
+  if (!path.anch) { // first point: the loop now starts and ends there
+    path.segs = [{ kind: seg.kind, bz: second.concat(first), corner: false }]; path.anch = true; return 0;
+  }
+  if (!first.length || !second.length) return first.length ? (si + 1) % path.segs.length : si; // already a point there
+  path.segs.splice(si, 1, { kind: seg.kind, bz: first, corner: seg.corner }, { kind: seg.kind, bz: second, corner: false });
+  return si + 1;
+}
+// One cubic through a run of points, keeping its end points and end directions (Schneider's least squares).
+function fitCubic(pts, t0, t1) {
+  const P0 = pts[0], P3 = pts.at(-1), n = pts.length;
+  let u = [0]; for (let k = 1; k < n; k++) u.push(u[k - 1] + len2(sub2(pts[k], pts[k - 1])));
+  const L = u.at(-1) || 1; u = u.map(v => v / L);
+  let bz = null;
+  for (let it = 0; it < 4; it++) {
+    let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+    for (let k = 0; k < n; k++) {
+      const t = u[k], v = 1 - t, b1 = 3 * v * v * t, b2 = 3 * v * t * t, A1 = mul2(t0, b1), A2 = mul2(t1, b2);
+      const tmp = sub2(pts[k], add2(mul2(P0, v * v * v + b1), mul2(P3, b2 + t * t * t)));
+      c00 += A1[0] * A1[0] + A1[1] * A1[1]; c01 += A1[0] * A2[0] + A1[1] * A2[1]; c11 += A2[0] * A2[0] + A2[1] * A2[1];
+      x0 += A1[0] * tmp[0] + A1[1] * tmp[1]; x1 += A2[0] * tmp[0] + A2[1] * tmp[1];
+    }
+    const det = c00 * c11 - c01 * c01, chord = len2(sub2(P3, P0));
+    let a1 = det ? (x0 * c11 - x1 * c01) / det : 0, a2 = det ? (c00 * x1 - c01 * x0) / det : 0;
+    if (!(a1 > chord * 1e-3) || !(a2 > chord * 1e-3)) a1 = a2 = chord / 3;
+    bz = [P0, add2(P0, mul2(t0, a1)), add2(P3, mul2(t1, a2)), P3];
+    u = u.map((t, k) => { // Newton step: move each parameter to where the curve is nearest its point
+      const q = bzAt(bz, t), v = 1 - t;
+      const d1 = add2(add2(mul2(sub2(bz[1], bz[0]), 3 * v * v), mul2(sub2(bz[2], bz[1]), 6 * v * t)), mul2(sub2(bz[3], bz[2]), 3 * t * t));
+      const d2 = add2(mul2(add2(sub2(bz[2], mul2(bz[1], 2)), bz[0]), 6 * v), mul2(add2(sub2(bz[3], mul2(bz[2], 2)), bz[1]), 6 * t));
+      const r = sub2(q, pts[k]), num = r[0] * d1[0] + r[1] * d1[1], den = d1[0] * d1[0] + d1[1] * d1[1] + r[0] * d2[0] + r[1] * d2[1];
+      return k === 0 ? 0 : k === n - 1 ? 1 : Math.min(1, Math.max(0, den ? t - num / den : t));
+    });
+  }
+  let err = 0; for (let k = 0; k < n; k++) err = Math.max(err, len2(sub2(bzAt(bz, u[k]), pts[k])));
+  return { bz, err };
+}
+const startDir = bz => unit2(len2(sub2(bz[0][1], bz[0][0])) > 1e-9 ? sub2(bz[0][1], bz[0][0]) : sub2(bz[0][2], bz[0][0]));
+const endDir = bz => { const b = bz.at(-1); return unit2(len2(sub2(b[2], b[3])) > 1e-9 ? sub2(b[2], b[3]) : sub2(b[1], b[3])); };
+function segFit(seg) { // the one curve that would stand in for this stretch (cached)
+  if (seg.kind === 'edit') return { bz: seg.bz[0], err: 0 };
+  if (!seg._fit) { const pts = chainPts(seg.bz, 0.01); pts.push(seg.bz.at(-1)[3]); seg._fit = fitCubic(pts, startDir(seg.bz), endDir(seg.bz)); }
+  return seg._fit;
+}
+// Turn stretch si into one editable curve. False (and the reason in edit.msg) if one curve can't keep its shape.
+function makeEditable(path, si) {
+  const seg = path.segs[si];
+  if (seg.kind === 'edit') return true;
+  if (!path.anch || path.segs.length < 2) { edit.msg = 'Add two points first. You shape the stretch between them.'; return false; }
+  const f = segFit(seg);
+  if (f.err > FIT_TOL) { edit.msg = `That stretch is too long or curvy to shape as one curve (it would move up to ${f.err.toFixed(2)}"). Add a point in it first.`; return false; }
+  seg.kind = 'edit'; seg.bz = [f.bz.map(p => [...p])]; delete seg._fit;
+  return true;
+}
+// Moving point k: how much each curve point of the two stretches beside it follows (1 = all the way). A stretch
+// that's one curve you've shaped moves like a pen tool's: the point and its handle go with it, the far end stays.
+// Any other stretch bends smoothly: fully at the point, fading to nothing at MOVE_REACH inches along it (or at the
+// next point, if that's closer), so the rest of the outline doesn't move. Returns [[segment, weights], ...].
+const MOVE_REACH = 2.0;
+function anchorWeights(path, k) {
+  const n = path.segs.length, out = new Map();
+  const fade = (dist, R) => dist >= R ? 0 : 0.5 + 0.5 * Math.cos(Math.PI * dist / R);
+  const side = (si, fromStart) => {
+    const bz = path.segs[si].bz;
+    if (path.segs[si].kind === 'edit' && n > 1) return bz.map(() => fromStart ? [1, 1, 0, 0] : [0, 0, 1, 1]);
+    const lens = bz.map(bzLen), L = lens.reduce((a, b) => a + b, 0), R = Math.min(L, MOVE_REACH);
+    let acc = 0;
+    return bz.map((b, i) => { const at = [acc, acc + lens[i] / 3, acc + 2 * lens[i] / 3, acc + lens[i]]; acc += lens[i]; return at.map(x => fade(fromStart ? x : L - x, R)); });
+  };
+  const nextS = k, prevS = (k - 1 + n) % n;
+  out.set(nextS, side(nextS, true));
+  const w = side(prevS, false);
+  if (prevS === nextS) { const a = out.get(nextS); out.set(nextS, a.map((ws, i) => ws.map((x, j) => Math.max(x, w[i][j])))); } // one point: both ends of the loop
+  else out.set(prevS, w);
+  return [...out];
+}
+function deleteAnchor(path, k) {
+  const n = path.segs.length;
+  if (!path.anch) return;
+  if (n === 1) { path.anch = false; return; }
+  // Removing a point keeps the shape exactly: the two stretches become one (several curves; it's turned into one
+  // editable curve again only when you drag it, and only if one curve can keep its shape).
+  const prev = path.segs[(k - 1 + n) % n], cur = path.segs[k];
+  const merged = { kind: prev.kind === 'orig' && cur.kind === 'orig' ? 'orig' : 'shaped', bz: prev.bz.concat(cur.bz), corner: prev.corner };
+  const rest = path.segs.filter((_, i) => i !== k && i !== (k - 1 + n) % n);
+  path.segs = k === 0 ? rest.concat([merged]) : rest.slice(0, k - 1).concat([merged], rest.slice(k - 1));
+}
+const anchorPt = (path, k) => path.segs[k].bz[0][0];
+
+// ---- the tab
+const edit = { key: null, sel: -1, view: null, drag: null, msg: '', hover: null, lastBuild: 0, timer: 0, showBase: true };
+const ecv = $('editCanvas'), ectx = ecv.getContext('2d');
+const editItem = () => P[edit.key] || null;
+function unplace(p, X, Y) { // placed position -> pattern point (inverse of place())
+  const s = pieceScale(p), [cx, cy] = pivotOf(p, s), a = -p.pose.rot * DEG, c = Math.cos(a), sn = Math.sin(a);
+  const dx = X - cx - p.pose.x, dy = Y - cy - p.pose.y;
+  return [(dx * c - dy * sn) / s + p.c0[0], (dx * sn + dy * c) / s + p.c0[1]];
+}
+const toScreen = (p, q) => { const [X, Y] = place(p, q[0], q[1]), v = edit.view; return [(X - v.cx) * v.z + ecv.clientWidth / 2, (v.cy - Y) * v.z + ecv.clientHeight / 2]; };
+const fromScreen = (p, sx, sy) => { const v = edit.view, X = (sx - ecv.clientWidth / 2) / v.z + v.cx, Y = v.cy - (sy - ecv.clientHeight / 2) / v.z; return unplace(p, X, Y); };
+function fitEditView() {
+  const p = editItem(); if (!p) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let k = 0; k < p.nB; k++) { const x = p.flat[2 * k], y = p.flat[2 * k + 1]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const w = ecv.clientWidth || 300, h = ecv.clientHeight || 300;
+  edit.view = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, z: Math.min((w - 30) / (x1 - x0 || 1), (h - 30) / (y1 - y0 || 1)) };
+}
+function sizeEdit() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  ecv.width = Math.round(ecv.clientWidth * d); ecv.height = Math.round(ecv.clientHeight * d);
+  if (!edit.view) fitEditView();
+  drawEdit();
+}
+function chooseEditItem(k) {
+  edit.key = k; edit.sel = -1; edit.msg = ''; edit.view = null;
+  renderEditItems(); fitEditView(); syncEditBox(); drawEdit();
+}
+function renderEditItems() { pieceChips($('editWhich'), p => p.key === edit.key, p => chooseEditItem(p.key)); }
+function drawEdit() {
+  if (!ecv.width || $('tab-edit').hidden) return;
+  const g = ectx, d = ecv.width / (ecv.clientWidth || 1), w = ecv.clientWidth, h = ecv.clientHeight, p = editItem();
+  g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+  if (!p || !edit.view) return;
+  const v = edit.view, SX = X => (X - v.cx) * v.z + w / 2, SY = Y => (v.cy - Y) * v.z + h / 2;
+  // 1" grid
+  g.strokeStyle = css('--grid'); g.lineWidth = 0.5; g.beginPath();
+  for (let X = Math.floor(v.cx - w / 2 / v.z); X <= v.cx + w / 2 / v.z; X++) { g.moveTo(SX(X), 0); g.lineTo(SX(X), h); }
+  for (let Y = Math.floor(v.cy - h / 2 / v.z); Y <= v.cy + h / 2 / v.z; Y++) { g.moveTo(0, SY(Y)); g.lineTo(w, SY(Y)); }
+  g.stroke();
+  // the other shown items, faint, and the bend lines
+  g.globalAlpha = 0.35;
+  for (const q of PIECES) {
+    if (q === p || !state.show[q.key]) continue;
+    g.beginPath(); for (let k = 0; k < q.nB; k++) { const x = SX(q.flat[2 * k]), y = SY(q.flat[2 * k + 1]); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath();
+    g.strokeStyle = q.col === 'accent' ? css('--fg') : colorOf(q); g.lineWidth = 1; g.stroke();
+  }
+  for (const hh of state.hinges) { if (!hh.pieces[p.key]) continue; g.strokeStyle = colorOf(p); g.lineWidth = 1; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(SX(hh.a[0]), SY(hh.a[1])); g.lineTo(SX(hh.b[0]), SY(hh.b[1])); g.stroke(); g.setLineDash([]); }
+  g.globalAlpha = 1;
+  if (!p.path) { // not linked yet: just its outline
+    g.beginPath(); for (let k = 0; k < p.nB; k++) { const x = SX(p.flat[2 * k]), y = SY(p.flat[2 * k + 1]); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath();
+    g.strokeStyle = p.col === 'accent' ? css('--fg') : colorOf(p); g.lineWidth = 2; g.stroke(); return;
+  }
+  const path = p.path, S = q => toScreen(p, q);
+  if (path.base && edit.showBase) { // the DXF outline, for comparison
+    g.beginPath(); chainPts(path.base, 0.05).forEach((q, k) => { const [x, y] = S(q); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+    g.strokeStyle = css('--muted'); g.lineWidth = 1; g.setLineDash([2, 3]); g.stroke(); g.setLineDash([]);
+  }
+  path.segs.forEach((s, si) => { // the outline: stretches you've shaped in the accent colour
+    g.beginPath();
+    s.bz.forEach((b, bi) => { const a = S(b[0]), c1 = S(b[1]), c2 = S(b[2]), e = S(b[3]); if (!bi) g.moveTo(...a); g.bezierCurveTo(...c1, ...c2, ...e); });
+    g.strokeStyle = s.kind === 'edit' ? css('--accent') : (p.col === 'accent' ? css('--fg') : colorOf(p)); g.lineWidth = 2; g.stroke();
+  });
+  if (edit.hover && !edit.drag) { const [x, y] = S(edit.hover.pt); g.fillStyle = css('--accent'); g.globalAlpha = 0.5; g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; }
+  if (!path.anch) return;
+  const n = path.segs.length, k = edit.sel;
+  if (k >= 0 && k < n) { // handles of the chosen point
+    for (const hd of editHandles(path, k)) {
+      const a = S(hd.from), b = S(hd.pt);
+      g.strokeStyle = css('--accent'); g.lineWidth = 1; g.globalAlpha = hd.real ? 1 : 0.5; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
+      g.fillStyle = css('--panel'); g.beginPath(); g.arc(...b, 4.5, 0, Math.PI * 2); g.fill(); g.stroke(); g.globalAlpha = 1;
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const [x, y] = S(anchorPt(path, i)), on = i === k;
+    g.fillStyle = on ? css('--accent') : css('--panel'); g.strokeStyle = css('--accent'); g.lineWidth = 1.5;
+    if (path.segs[i].corner) { g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill(); g.stroke(); }
+    else { g.fillRect(x - 5, y - 5, 10, 10); g.strokeRect(x - 5, y - 5, 10, 10); }
+  }
+}
+// The two handles of point k: 'in' (end of the stretch before it) and 'out' (start of the stretch after it).
+// A handle of a stretch that's still the DXF curve is shown faint, where it would be; dragging it makes it real.
+function editHandles(path, k) {
+  const n = path.segs.length, out = [], prev = path.segs[(k - 1 + n) % n], next = path.segs[k];
+  if (n < 2) return out;
+  const fo = segFit(next), fi = segFit(prev);
+  if (next.kind === 'edit' || fo.err <= FIT_TOL) out.push({ side: 'out', from: next.bz[0][0], pt: next.kind === 'edit' ? next.bz[0][1] : fo.bz[1], real: next.kind === 'edit' });
+  if (prev.kind === 'edit' || fi.err <= FIT_TOL) out.push({ side: 'in', from: prev.bz.at(-1)[3], pt: prev.kind === 'edit' ? prev.bz[0][2] : fi.bz[2], real: prev.kind === 'edit' });
+  return out;
+}
+// Rebuild the item's 3D piece from its path: right away when `now`, else at most every 120 ms while dragging.
+function rebuildFromPath(now) {
+  clearTimeout(edit.timer);
+  const go = () => { edit.lastBuild = performance.now(); const p = editItem(); if (!p?.path) return; swapOutline(p, pathRing(p.path)); syncEditBox(); };
+  if (now || performance.now() - edit.lastBuild > 120) go(); else edit.timer = setTimeout(go, 120);
+}
+// A new outline for item p, keeping where it sits (the viewer turns and scales an item about its outline's centre,
+// which moves with the outline, so the pose is shifted to make up for it) and all its settings and bend lines.
+function swapOutline(p, ring) {
+  const s = pieceScale(p), [pvx, pvy] = pivotOf(p, s), [c0x, c0y] = p.c0, [cnx, cny] = ringMean(ring);
+  const a = p.pose.rot * DEG, c = Math.cos(a), sn = Math.sin(a), kx = (cnx - c0x) * s, ky = (cny - c0y) * s;
+  const pose = { ...p.pose, x: p.pose.x + pvx - cnx + kx * c - ky * sn, y: p.pose.y + pvy - cny + kx * sn + ky * c };
+  const stitch = p.stitchSrc || (p.stitchBase ? Array.from({ length: p.stitchN }, (_, k) => [p.stitchBase[2 * k], p.stitchBase[2 * k + 1]]) : undefined);
+  const def = { key: p.key, label: p.label, kind: p.kind, col: p.col, outline: ring, stitch, path: p.path, source: p.source };
+  const show = state.show[p.key], nf = state.newFor[p.key], i = PIECES.indexOf(p);
+  const keep = { label: p.label, col: p.col, thick: p.thick, opacity: p.opacity, drape: p.drape, edgeR: p.edgeR, target: p.target };
+  removePiece(p);
+  const q = createPiece(def); q.sig = geomSig(def); Object.assign(q, keep); q.pose = pose;
+  addPiece(q, i); state.show[q.key] = show; state.newFor[q.key] = nf;
+  applyStack(); for (const r of PIECES) updateFlat(r); for (const h of state.hinges) updateHingeGeom(h);
+  renderItems(); syncItemBox(); dirty = colorsDirty = true; drawFlat(); save();
+  return q;
+}
+function pathStats(p) {
+  const path = p.path, now = chainPts(pathChain(path), 0.02), base = path.base ? chainPts(path.base, 0.02) : null;
+  const area = r => { let a = 0; for (let k = 0; k < r.length; k++) { const [x, y] = r[k], [u, v] = r[(k + 1) % r.length]; a += x * v - u * y; } return Math.abs(a / 2); };
+  const leng = r => { let l = 0; for (let k = 0; k < r.length; k++) l += len2(sub2(r[(k + 1) % r.length], r[k])); return l; };
+  let moved = 0;
+  if (base && path.segs.some(s => s.kind !== 'orig')) for (const q of now.filter((_, k) => k % 3 === 0)) moved = Math.max(moved, nearestOnRing(base, q[0], q[1])[2]);
+  return { area: area(now), area0: base ? area(base) : null, len: leng(now), moved };
+}
+function syncEditBox() {
+  const p = editItem();
+  $('editBox').hidden = !p;
+  if (!p) return;
+  const src = p.source;
+  $('editSrc').innerHTML = src ? `From <b>${escapeHtml(src.file)}</b> (piece ${escapeHtml(src.handle)}).` : 'This item has no DXF link, so it can\'t be edited.';
+  const on = !!p.path;
+  for (const id of ['editReset', 'editSaveAs', 'editOverwrite', 'editDelPt', 'editShowBase']) $(id).disabled = !on;
+  $('editOverwrite').textContent = src ? `Overwrite ${baseName(src.file)}` : 'Overwrite the DXF';
+  $('editDelPt').disabled = !on || edit.sel < 0;
+  if (on) {
+    const st = pathStats(p), n = p.path.anch ? p.path.segs.length : 0, ne = p.path.segs.filter(s => s.kind !== 'orig').length;
+    $('editStats').textContent = `${n} point${n === 1 ? '' : 's'}, ${ne} stretch${ne === 1 ? '' : 'es'} reshaped. Outline ${st.len.toFixed(2)}" round, area ${st.area.toFixed(2)} sq in`
+      + (st.area0 !== null ? ` (DXF ${st.area0.toFixed(2)})` : '') + (ne ? `; moved up to ${st.moved.toFixed(3)}" from the DXF.` : '.');
+  } else $('editStats').textContent = '';
+  $('editMsg').textContent = edit.msg; $('editMsg').classList.toggle('err', /too long|first|Couldn't|isn't|can't|No /.test(edit.msg));
+}
+const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// ---- pointer: click the outline to add a point; drag a point, a handle or a stretch; drag the background to pan
+function editHit(sx, sy) {
+  const p = editItem(); if (!p?.path) return null;
+  const path = p.path, S = q => toScreen(p, q), near = (q, r) => { const [x, y] = S(q); return Math.hypot(x - sx, y - sy) <= r; };
+  if (path.anch && edit.sel >= 0 && edit.sel < path.segs.length) for (const hd of editHandles(path, edit.sel)) if (near(hd.pt, 7)) return { type: 'handle', side: hd.side };
+  if (path.anch) for (let k = 0; k < path.segs.length; k++) if (near(anchorPt(path, k), 7)) return { type: 'anchor', k };
+  const q = fromScreen(p, sx, sy), loc = locatePath(path, q[0], q[1]);
+  if (loc && loc.d * edit.view.z * pieceScale(p) <= 6) return { type: 'line', loc };
+  return null;
+}
+const evPt = ev => { const r = ecv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+ecv.addEventListener('pointerdown', ev => {
+  const p = editItem(); if (!p || !edit.view) return;
+  const [sx, sy] = evPt(ev); ecv.setPointerCapture(ev.pointerId);
+  const hit = ev.button === 0 ? editHit(sx, sy) : null;
+  edit.msg = '';
+  if (!hit) { edit.drag = { type: 'pan', sx, sy, v: { ...edit.view } }; ecv.style.cursor = 'grabbing'; return; }
+  checkpoint();
+  edit.drag = { ...hit, sx, sy, ck: undoStack.length, moved: false, alt: ev.altKey, q0: fromScreen(p, sx, sy) };
+  if (hit.type === 'anchor') { edit.sel = hit.k; drawEdit(); syncEditBox(); }
+});
+ecv.addEventListener('pointermove', ev => {
+  const p = editItem(); if (!p || !edit.view) return;
+  const [sx, sy] = evPt(ev), d = edit.drag;
+  if (!d) { // hover: show where a click would add a point
+    const hit = editHit(sx, sy);
+    edit.hover = hit?.type === 'line' ? hit.loc : null;
+    ecv.style.cursor = hit ? (hit.type === 'line' ? 'copy' : 'move') : 'grab'; drawEdit(); return;
+  }
+  if (d.type === 'pan') { edit.view.cx = d.v.cx - (sx - d.sx) / d.v.z; edit.view.cy = d.v.cy + (sy - d.sy) / d.v.z; drawEdit(); return; }
+  if (!d.moved && Math.hypot(sx - d.sx, sy - d.sy) < 3) return;
+  const path = p.path, n = path.segs.length, q = fromScreen(p, sx, sy);
+  if (!d.moved) { // first move: make the stretches this drag changes editable (all or nothing)
+    d.moved = true;
+    const before = clone(path), fail = () => { path.segs = before.segs; path.anch = before.anch; stopEditDrag(true); };
+    if (d.type === 'anchor') { d.a0 = clone(path); d.w = anchorWeights(d.a0, d.k); }
+    if (d.type === 'handle') {
+      const k = edit.sel, own = d.side === 'out' ? k : (k - 1 + n) % n, other = d.side === 'out' ? (k - 1 + n) % n : k;
+      if (!makeEditable(path, own)) return void fail();
+      if (d.alt) path.segs[k].corner = true;
+      d.smooth = !path.segs[k].corner && makeEditable(path, other);
+      if (!path.segs[k].corner && !d.smooth) path.segs[k].corner = true, edit.msg = 'The other side couldn\'t follow, so this point is now a corner.';
+      d.a0 = clone(path);
+    }
+    if (d.type === 'line') {
+      if (!makeEditable(path, d.loc.si)) return void fail();
+      const b = path.segs[d.loc.si].bz[0], l = locatePath({ segs: [{ bz: [b] }] }, ...d.loc.pt);
+      d.t = Math.min(0.9, Math.max(0.1, l.t)); d.a0 = clone(path); edit.sel = -1;
+    }
+  }
+  const dx = q[0] - d.q0[0], dy = q[1] - d.q0[1], A = d.a0;
+  if (d.type === 'anchor') { // every curve point next to the point follows it by its own weight (see anchorWeights)
+    for (const [si, W] of d.w) {
+      path.segs[si].bz = A.segs[si].bz.map((b, bi) => b.map((pt, j) => [pt[0] + dx * W[bi][j], pt[1] + dy * W[bi][j]]));
+      if (path.segs[si].kind === 'orig') path.segs[si].kind = 'shaped';
+    }
+  } else if (d.type === 'handle') {
+    const k = edit.sel, pk = (k - 1 + n) % n;
+    if (d.side === 'out') {
+      path.segs[k].bz[0][1] = q;
+      if (d.smooth) { const o = A.segs[pk].bz[0], L = len2(sub2(o[2], o[3])), u = unit2(sub2(path.segs[k].bz[0][0], q)); path.segs[pk].bz[0][2] = add2(o[3], mul2(u, L)); }
+    } else {
+      path.segs[pk].bz[0][2] = q;
+      if (d.smooth) { const o = A.segs[k].bz[0], L = len2(sub2(o[1], o[0])), u = unit2(sub2(path.segs[pk].bz[0][3], q)); path.segs[k].bz[0][1] = add2(o[0], mul2(u, L)); }
+    }
+  } else if (d.type === 'line') { // bend the stretch so the spot you grabbed follows the pointer (both handles share the pull)
+    const t = d.t, o = A.segs[d.loc.si].bz[0], kk = 1 / (3 * t * (1 - t) * ((1 - t) ** 2 + t * t));
+    path.segs[d.loc.si].bz[0] = [o[0], add2(o[1], mul2([dx, dy], kk * (1 - t))), add2(o[2], mul2([dx, dy], kk * t)), o[3]];
+  }
+  drawEdit(); rebuildFromPath(false);
+});
+const clone = path => ({ anch: path.anch, base: path.base, segs: path.segs.map(s => ({ kind: s.kind, corner: s.corner, bz: s.bz.map(b => b.map(q => [...q])) })) });
+function stopEditDrag(cancel) {
+  const d = edit.drag; edit.drag = null; ecv.style.cursor = 'grab';
+  if (!d || d.type === 'pan') return;
+  if (cancel) { dropCheckpoint(d.ck); syncEditBox(); drawEdit(); return; }
+}
+ecv.addEventListener('pointerup', ev => {
+  const p = editItem(), d = edit.drag;
+  if (!d) return;
+  edit.drag = null; ecv.style.cursor = 'grab';
+  if (d.type === 'pan') return;
+  if (!d.moved) {
+    if (d.type === 'line') { edit.sel = addAnchor(p.path, d.loc); save(); } // a new point doesn't change the shape
+    else dropCheckpoint(d.ck);
+  } else rebuildFromPath(true);
+  syncEditBox(); drawEdit();
+});
+ecv.addEventListener('pointerleave', () => { if (!edit.drag && edit.hover) { edit.hover = null; drawEdit(); } });
+ecv.addEventListener('wheel', ev => {
+  if (!edit.view) return; ev.preventDefault();
+  const [sx, sy] = evPt(ev), v = edit.view, w = ecv.clientWidth, h = ecv.clientHeight;
+  const X = (sx - w / 2) / v.z + v.cx, Y = v.cy - (sy - h / 2) / v.z, z = Math.min(2000, Math.max(5, v.z * Math.exp(-ev.deltaY * 0.0015)));
+  v.cx = X - (sx - w / 2) / z; v.cy = Y + (sy - h / 2) / z; v.z = z; drawEdit();
+}, { passive: false });
+function deleteSelectedPoint() {
+  const p = editItem(); if (!p?.path || edit.sel < 0) return;
+  checkpoint(); deleteAnchor(p.path, edit.sel); edit.sel = -1; edit.msg = ''; rebuildFromPath(true); drawEdit();
+}
+addEventListener('keydown', e => {
+  if ($('tab-edit').hidden) return;
+  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && edit.sel >= 0) { e.preventDefault(); deleteSelectedPoint(); }
+  if (e.key === 'Escape') { edit.sel = -1; drawEdit(); syncEditBox(); }
+});
+$('editDelPt').addEventListener('click', deleteSelectedPoint);
+$('editFit').addEventListener('click', () => { fitEditView(); drawEdit(); });
+$('editShowBase').addEventListener('change', e => { edit.showBase = e.target.checked; drawEdit(); });
+$('editReset').addEventListener('click', () => {
+  const p = editItem(); if (!p?.path?.base) return;
+  checkpoint(); p.path = freshPath(p.path.base); edit.sel = -1; edit.msg = 'Back to the outline from the DXF.'; rebuildFromPath(true); drawEdit();
+});
+
+// The DXF text with piece `handle` replaced by `chain` (Béziers in DXF units) as one SPLINE. Everything else is kept.
+function writeDxfPiece(text, handle, chain) {
+  const nl = text.includes('\r\n') ? '\r\n' : '\n', L = text.split(/\r\n|\n/);
+  let s = -1;
+  for (let i = 0; i + 3 < L.length; i += 2) if (L[i].trim() === '0' && L[i + 2].trim() === '5' && L[i + 3].trim() === handle) { s = i; break; }
+  if (s < 0) throw new Error(`piece ${handle} isn't in this DXF any more`);
+  const type = L[s + 1].trim();
+  let e = s + 2;
+  while (e + 1 < L.length && L[e].trim() !== '0') e += 2;
+  if (type === 'POLYLINE') { while (e + 1 < L.length && !(L[e].trim() === '0' && L[e + 1].trim() === 'SEQEND')) e += 2; e += 2; while (e + 1 < L.length && L[e].trim() !== '0') e += 2; }
+  // keep the common entity data (handle, owner, layer, colour, line weight ...) up to the type's own data
+  const keep = [];
+  for (let i = s + 2; i < e; i += 2) { if (L[i].trim() === '100' && L[i + 1].trim() !== 'AcDbEntity') break; keep.push(L[i], L[i + 1]); }
+  if (!keep.some(x => x.trim() === 'AcDbEntity')) keep.push('100', 'AcDbEntity'), keep.includes('  8') || keep.push('  8', '0');
+  const f = v => String(+v.toFixed(10)), N = chain.length, knots = [0, 0, 0, 0];
+  for (let j = 1; j < N; j++) knots.push(j, j, j);
+  knots.push(N, N, N, N);
+  const ctrl = [chain[0][0]]; for (const b of chain) ctrl.push(b[1], b[2], b[3]);
+  const out = ['  0', 'SPLINE', ...keep, '100', 'AcDbSpline', '210', '0.0', '220', '0.0', '230', '1.0', ' 70', '8', ' 71', '3', ' 72', String(knots.length), ' 73', String(ctrl.length), ' 74', '0', ' 42', '0.0000000001', ' 43', '0.0000000001'];
+  for (const k of knots) out.push(' 40', String(k));
+  for (const [x, y] of ctrl) out.push(' 10', f(x), ' 20', f(y), ' 30', '0.0');
+  return L.slice(0, s).concat(out, L.slice(e)).join(nl);
+}
+function dxfChainOf(p) { // the path, back in the DXF's own coordinates and units
+  const s = p.source, inv = q => { const [x, y] = ixfPt(s, q); return [x / s.unit, y / s.unit]; };
+  return pathChain(p.path).map(b => b.map(inv));
+}
+// ---- saving the edited piece back to a DXF
+// source.file is the DXF's path from the repo root (e.g. "dxf/Laces Boxing 14OZ (1).dxf"). With the viewer served by
+// scripts/serve_viewer.py the page reads that file straight from the repo and saves into dxf/ with no file dialogs.
+// Without it (another server, Safari ...) it falls back to the browser's file pickers.
+const dxfText = new Map(); // DXF files read this session, by path or name
+const getDxfHandle = name => cfgDb('readonly', st => st.get('dxf:' + name)).catch(() => null);
+const putDxfHandle = (name, h) => cfgDb('readwrite', st => st.put(h, 'dxf:' + name)).catch(() => null);
+const DXF_TYPES = [{ description: 'DXF pattern', accept: { 'application/dxf': ['.dxf'] } }];
+const baseName = f => String(f).split('/').pop();
+const repoUrl = f => new URL('../' + f.split('/').map(encodeURIComponent).join('/'), location.href);
+async function pickDxf() { // { file, handle (or null) }
+  if (window.showOpenFilePicker) {
+    try { const [fh] = await window.showOpenFilePicker({ id: 'chone-fit-dxf', multiple: false, types: DXF_TYPES }); return { file: await fh.getFile(), handle: fh }; }
+    catch (e) { if (e.name === 'AbortError') return null; }
+  }
+  return new Promise(res => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.dxf'; inp.onchange = () => res(inp.files[0] ? { file: inp.files[0], handle: null } : null); inp.click(); });
+}
+async function sourceText(p) { // the linked DXF's text: from the repo, a remembered file, or (last resort) ask for it
+  const f = p.source.file;
+  try { const r = await fetch(repoUrl(f), { cache: 'no-store' }); if (r.ok) { const t = await r.text(); if (t.includes('ENTITIES')) return { text: t, handle: null }; } } catch (e) { /* not served from the repo */ }
+  if (dxfText.has(f)) return { text: dxfText.get(f), handle: null };
+  let fh = await getDxfHandle(f);
+  if (fh) { try { if (await fh.queryPermission({ mode: 'read' }) !== 'granted') await fh.requestPermission({ mode: 'read' }); return { text: await (await fh.getFile()).text(), handle: fh }; } catch (e) { fh = null; } }
+  edit.msg = `Choose ${baseName(f)} (the DXF ${p.label} came from). Serve the viewer with scripts/serve_viewer.py and this isn't needed.`; syncEditBox();
+  const got = await pickDxf(); if (!got) return null;
+  if (got.file.name !== baseName(f) && !confirm(`${p.label} came from ${baseName(f)}, but you picked ${got.file.name}. Use it anyway?`)) return null;
+  const text = await got.file.text(); dxfText.set(f, text); if (got.handle) await putDxfHandle(f, got.handle);
+  return { text, handle: got.handle };
+}
+// Write through scripts/serve_viewer.py. Returns 'ok', 'exists' or 'none' (no such server).
+async function serverSave(path, text, overwrite) {
+  try {
+    const r = await fetch(new URL('/api/save-dxf', location.href), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, text, overwrite }) });
+    if (r.status === 409) return 'exists';
+    if (r.ok) return 'ok';
+    if (r.status === 400 || r.status === 403) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    return 'none';
+  } catch (e) { if (e instanceof TypeError) return 'none'; throw e; }
+}
+async function saveEdited(overwrite) {
+  const p = editItem(); if (!p?.path || !p.source) return;
+  try {
+    const st = pathStats(p);
+    if (!(st.area > 0.5) || (st.area0 && (st.area < st.area0 * 0.5 || st.area > st.area0 * 2))) throw new Error(`the outline doesn't look right (area ${st.area.toFixed(2)} sq in), so it wasn't saved. Undo back to a good shape first`);
+    const src = await sourceText(p); if (!src) return;
+    const text = writeDxfPiece(src.text, p.source.handle, dxfChainOf(p));
+    if (!parseDXF(text).some(c => c.handle === p.source.handle)) throw new Error('the saved piece couldn\'t be read back');
+    const folder = p.source.file.includes('/') ? p.source.file.slice(0, p.source.file.lastIndexOf('/') + 1) : 'dxf/';
+    let path;
+    if (overwrite) {
+      if (!confirm(`Overwrite ${baseName(p.source.file)}? Only ${p.label}'s outline (piece ${p.source.handle}) changes; the rest of the file stays as it is.`)) return;
+      const r = await serverSave(p.source.file, text, true);
+      if (r === 'ok') path = p.source.file;
+      else {
+        const fh = src.handle || await getDxfHandle(p.source.file);
+        if (!fh) throw new Error('can\'t write to the file from here. Serve the viewer with scripts/serve_viewer.py, or use Save as new DXF');
+        if (await fh.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('no permission to write the file');
+        const w = await fh.createWritable(); await w.write(text); await w.close(); path = p.source.file;
+      }
+    } else {
+      let name = prompt(`Save ${p.label} as a new DXF in ${folder} named:`, baseName(p.source.file).replace(/\.dxf$/i, '') + ' - edited.dxf');
+      if (!name) return;
+      name = name.trim().replace(/[\\/:*?"<>|]+/g, '-'); if (!/\.dxf$/i.test(name)) name += '.dxf';
+      let r = await serverSave(folder + name, text, false);
+      if (r === 'exists') { if (!confirm(`${name} already exists in ${folder}. Replace it?`)) return; r = await serverSave(folder + name, text, true); }
+      if (r === 'ok') path = folder + name;
+      else if (window.showSaveFilePicker) {
+        let fh;
+        try { fh = await window.showSaveFilePicker({ suggestedName: name, types: DXF_TYPES, ...(src.handle ? { startIn: src.handle } : {}) }); }
+        catch (e) { if (e.name === 'AbortError') return; throw e; }
+        const w = await fh.createWritable(); await w.write(text); await w.close(); path = folder + fh.name; await putDxfHandle(path, fh);
+      } else {
+        const url = URL.createObjectURL(new Blob([text], { type: 'application/dxf' })), a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        path = folder + name;
+      }
+    }
+    dxfText.set(path, text);
+    checkpoint();
+    p.source = { ...p.source, file: path }; p.path.base = pathChain(p.path).map(b => b.map(q => [...q])); // Reset now goes back to what was saved
+    edit.msg = `Saved ${p.label} to ${path}. ${p.label} now points at that file.`; save(); syncEditBox(); drawEdit();
+  } catch (e) { edit.msg = `Couldn't save: ${e.message}.`; syncEditBox(); }
+}
+$('editSaveAs').addEventListener('click', () => saveEdited(false));
+$('editOverwrite').addEventListener('click', () => saveEdited(true));
+new ResizeObserver(sizeEdit).observe(ecv);
+
+// Link a new item definition to the DXF piece it's made from (curve c of the open import dialog), laid out by m.
+function linkDef(def, c, m) {
+  if (!c.handle) return;
+  const chain = entityChain(c); if (!chain) return;
+  def.source = { file: 'dxf/' + imp.file, handle: c.handle, unit: c.unit, mirror: !!m.mirror, rot: m.rot || 0, ox: m.ox, oy: m.oy };
+  def.path = freshPath(roundChain(placedChain(chain, def.source)));
+  if (imp.fh) putDxfHandle(def.source.file, imp.fh); // so Overwrite can write back to it even without serve_viewer.py
+}
 
 // ---------------------------------------------------------------- boot
 function resize() {

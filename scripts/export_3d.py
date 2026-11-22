@@ -8,7 +8,7 @@ Mould 2 is placed inside Mould 1 the same way.
 Usage: uv run --with ezdxf --with shapely --with scipy python scripts/export_3d.py \
        "dxf/Laces Boxing 14OZ (1).dxf" viewer/glove-data.js
 """
-import json, sys
+import json, math, sys
 import ezdxf, numpy as np, shapely
 from shapely.geometry import Polygon, MultiPoint, Point
 from shapely import affinity
@@ -37,10 +37,21 @@ def fit(outer, m, turns):
         g = place(p)
         return np.std([g.exterior.distance(q) * (-1 if g.contains(q) else 1) for q in pts])
     best = min((minimize(cost, [r, 0, 0], method="Nelder-Mead") for r in turns), key=lambda r: r.fun)
-    return place(best.x), best.fun
+    return place(best.x), best.fun, best.x
 
-g1, _ = fit(ci, m1, range(-20, 25, 5))
-g2 = min((fit(g1, c, range(-180, 180, 20)) for c in (m2f, m2u)), key=lambda r: r[1])[0]
+g1, _, x1 = fit(ci, m1, range(-20, 25, 5))
+g2, _, x2, m2 = min((fit(g1, c, range(-180, 180, 20)) + (c,) for c in (m2f, m2u)), key=lambda r: r[1])
+
+# How each piece was laid out, as the viewer's item link (dxf_link.py): DXF point -> (mirror x) -> turned -> moved.
+def link(h, mirrored, outer=None, m=None, x=None):
+    if outer is None: return dict(mirror=False, rot=0.0, ox=-ORIGIN[0], oy=-ORIGIN[1])  # the Chone: only moved
+    a = np.radians(x[0]); R = np.array([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
+    mc = np.array(m.centroid.coords[0]); tr = np.array([outer.centroid.x - m.centroid.x + x[1], outer.centroid.y - m.centroid.y + x[2]])
+    f0 = np.array([2 * P(h).centroid.x, 0.0]) if mirrored else np.zeros(2)  # mirrored about the piece's own centre
+    o = R @ (f0 - mc) + mc + tr - np.array(ORIGIN)
+    return dict(mirror=mirrored, rot=float(a), ox=float(o[0]), oy=float(o[1]))
+LINKS = {"chone": ("95", link("95", False)), "mould1": ("320", link("320", True, ci, m1, x1)),
+         "mould2": ("2FE", link("2FE", m2 is m2f, g1, m2, x2))}
 
 def to_frame(g): return affinity.translate(g, -ORIGIN[0], -ORIGIN[1])
 
@@ -85,4 +96,15 @@ for k in ("chone", "mould1", "mould2"):
     v = np.array(out[k]["verts"]); print(k, len(v), "verts", len(out[k]["tris"]), "tris", "bounds", v.min(0).round(2), v.max(0).round(2))
 ch = to_frame(ci); 
 print("chone stitch bounds", np.round(ch.bounds, 2))
+# Each piece's DXF link and its outline as Béziers, for the viewer's Edit pattern tab (see dxf_link.py)
+from pathlib import Path
+from dxf_link import REPO, entity_chain, flat, placed_path, unit_of, xf
+rel = str(Path(sys.argv[1]).resolve().relative_to(REPO)); unit = unit_of(doc)
+for k, (h, m) in LINKS.items():
+    src = {"file": rel, "handle": h, "unit": unit, **m}
+    curve = Polygon(xf(src, flat(db[h], unit))).exterior  # the viewer's outline points must lie on the linked DXF curve
+    err = max(curve.distance(Point(q)) for q in out[k]["verts"][:out[k]["nBoundary"]])
+    if err > 0.01: sys.exit(f"{k}: the link doesn't reproduce the piece (off by {err:.3f} in)")
+    out[k]["source"], out[k]["path"] = src, placed_path(entity_chain(db[h], unit), src)
+    print(k, "is piece", h, "mirrored" if m["mirror"] else "as drawn", f"turned {math.degrees(m['rot']):.3f} deg; link reproduces it within {err:.4f} in")
 open(sys.argv[2], "w").write("window.GLOVE_DATA = " + json.dumps(out, separators=(",", ":")) + ";\n")
