@@ -278,10 +278,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <p class="note" id="editStats"></p>
         <div class="btns">
           <button class="btn" id="editFit">Fit to view</button>
+          <button class="btn" id="editCorner" disabled title="A corner point's two handles move separately (curve one side only). Same as ⌘-clicking it.">Make corner</button>
           <button class="btn danger" id="editDelPt" disabled>Delete point</button>
           <label class="check"><input type="checkbox" id="editShowBase" checked> Show the DXF outline (dashed)</label>
         </div>
-        <p class="note">Like a pen tool. <b>Click the outline</b> to add a point. Between two points you can: <b>drag the line</b> to curve it, <b>drag a point</b> to move it (the line to the next point stretches to follow; on a long stretch only the 2" beside the point bends, the rest stays put), or drag a point's <b>handles</b> to change how the curve leaves it. <kbd>Alt</kbd>-drag a handle to break it into a corner. Select a point and press <kbd>Delete</kbd> to remove it. Drag the background to pan, scroll to zoom. The 3D view follows as you go; ⌘Z undoes.</p>
+        <p class="note">Like a pen tool. <b>Click the outline</b> to add a point. Between two points you can: <b>drag the line</b> to curve it, <b>drag a point</b> to move it (the line to the next point stretches to follow; on a long stretch only the 2" beside the point bends, the rest stays put), or drag a point's <b>handles</b> to change how the curve leaves it. To curve <b>one side only</b>, make the point a corner: hold <kbd>⌘</kbd> (or <kbd>⌥</kbd>/<kbd>Alt</kbd>) and click or drag a handle, ⌘-click the point, or use <b>Make corner</b>. A corner's handles then always move separately. Select a point and press <kbd>Delete</kbd> to remove it: the outline either side of it goes back to the DXF outline. Drag the background to pan, scroll to zoom. The 3D view follows as you go; ⌘Z undoes.</p>
         <div class="btns">
           <button class="btn save" id="editSaveAs">Save as new DXF…</button>
           <button class="btn" id="editOverwrite">Overwrite the DXF</button>
@@ -1445,7 +1446,8 @@ function setTab(t) {
   if (!TABS.includes(t)) t = 'items';
   for (const k of TABS) { $('tab-' + k).hidden = k !== t; document.querySelector(`.tab[data-tab="${k}"]`).setAttribute('aria-selected', String(k === t)); }
   document.querySelector('.app').classList.toggle('wide', t === 'edit');
-  if (t === 'edit') { if (!P[edit.key]) edit.key = chosen()?.key ?? null; edit.view = null; renderEditItems(); syncEditBox(); requestAnimationFrame(sizeEdit); }
+  if (t === 'edit') {
+    if (!P[edit.key]) { let k = null; try { k = localStorage.getItem('chone-fit-lab-edit-item'); } catch (e) { } edit.key = P[k] ? k : chosen()?.key ?? null; } edit.view = null; renderEditItems(); syncEditBox(); requestAnimationFrame(sizeEdit); }
   try { localStorage.setItem('chone-fit-lab-tab', t); } catch (e) { /* fine */ }
 }
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -1632,7 +1634,7 @@ const KEY = 'chone-fit-lab-v2';
 let booted = false;
 const geomSig = d => d.kind + '|' + (d.builtin || JSON.stringify(d.outline) + '|' + JSON.stringify(d.stitch || null));
 // An item's pen-tool path, copied without the cached curve fits.
-function clonePath(path) { return path && { anch: !!path.anch, base: path.base, segs: path.segs.map(sg => ({ kind: sg.kind, corner: !!sg.corner, bz: sg.bz })) }; }
+function clonePath(path) { return path && { anch: !!path.anch, base: path.base, segs: path.segs.map(sg => ({ kind: sg.kind, corner: !!sg.corner, bz: sg.bz, ...(sg.head ? { head: true } : {}), ...(sg.tail ? { tail: true } : {}) })) }; }
 function itemSnap(p) {
   return { key: p.key, label: p.label, kind: p.kind, ...(p.builtin ? { builtin: p.builtin } : { outline: p.outline, stitch: p.stitchSrc || undefined }), col: p.col,
     path: clonePath(p.path), source: p.source ? { ...p.source } : null,
@@ -2388,7 +2390,7 @@ function addAnchor(path, loc) {
     path.segs = [{ kind: seg.kind, bz: second.concat(first), corner: false }]; path.anch = true; return 0;
   }
   if (!first.length || !second.length) return first.length ? (si + 1) % path.segs.length : si; // already a point there
-  path.segs.splice(si, 1, { kind: seg.kind, bz: first, corner: seg.corner }, { kind: seg.kind, bz: second, corner: false });
+  path.segs.splice(si, 1, { kind: seg.kind, bz: first, corner: seg.corner, head: seg.head && first.length > 1 }, { kind: seg.kind, bz: second, corner: false, tail: seg.tail && second.length > 1 });
   return si + 1;
 }
 // One cubic through a run of points, keeping its end points and end directions (Schneider's least squares).
@@ -2434,7 +2436,7 @@ function makeEditable(path, si) {
   if (!path.anch || path.segs.length < 2) { edit.msg = 'Add two points first. You shape the stretch between them.'; return false; }
   const f = segFit(seg);
   if (f.err > FIT_TOL) { edit.msg = `That stretch is too long or curvy to shape as one curve (it would move up to ${f.err.toFixed(2)}"). Add a point in it first.`; return false; }
-  seg.kind = 'edit'; seg.bz = [f.bz.map(p => [...p])]; delete seg._fit;
+  seg.kind = 'edit'; seg.bz = [f.bz.map(p => [...p])]; delete seg._fit; delete seg.head; delete seg.tail;
   return true;
 }
 // Moving point k: how much each curve point of the two stretches beside it follows (1 = all the way). A stretch
@@ -2459,15 +2461,35 @@ function anchorWeights(path, k) {
   else out.set(prevS, w);
   return [...out];
 }
+// Removing point k puts the outline either side of it back to the DXF outline: the stretch from the point before it
+// to the point after it becomes that part of the original DXF curve again. If either neighbour has been moved off the
+// original, the original blends smoothly into it (over MOVE_REACH, or half the stretch), so the outline stays joined.
+// Removing the last point puts the whole outline back.
 function deleteAnchor(path, k) {
   const n = path.segs.length;
   if (!path.anch) return;
-  if (n === 1) { path.anch = false; return; }
-  // Removing a point keeps the shape exactly: the two stretches become one (several curves; it's turned into one
-  // editable curve again only when you drag it, and only if one curve can keep its shape).
-  const prev = path.segs[(k - 1 + n) % n], cur = path.segs[k];
-  const merged = { kind: prev.kind === 'orig' && cur.kind === 'orig' ? 'orig' : 'shaped', bz: prev.bz.concat(cur.bz), corner: prev.corner };
-  const rest = path.segs.filter((_, i) => i !== k && i !== (k - 1 + n) % n);
+  const base = path.base.map(b => b.map(q => [...q]));
+  if (n === 1) { path.segs = [{ kind: 'orig', bz: base, corner: false }]; path.anch = false; return; }
+  const pi = (k - 1 + n) % n, prev = path.segs[pi];
+  const S = prev.bz[0][0], E = path.segs[(k + 1) % n].bz[0][0]; // the neighbouring points (the same one when n === 2)
+  // the original outline, starting where S is on it, running the same way round, up to where E is on it
+  const on = (chain, q) => locatePath({ segs: [{ bz: chain }] }, q[0], q[1]);
+  const startAt = (chain, l) => { const p = { anch: false, segs: [{ kind: 'orig', bz: chain, corner: false }] }; addAnchor(p, { si: 0, bi: l.bi, t: l.t }); return p.segs[0].bz; };
+  const loop = startAt(base, on(base, S));
+  let sub = loop;
+  if (n > 2) { const l = on(loop, E); const p = { anch: true, segs: [{ kind: 'orig', bz: loop, corner: false }] }; const at = addAnchor(p, { si: 0, bi: l.bi, t: l.t }); sub = at ? p.segs[0].bz : loop; }
+  // join it to the neighbours where they are now
+  const dS = sub2(S, sub[0][0]), dE = sub2(E, sub.at(-1)[3]), moved = len2(dS) > 1e-6 || len2(dE) > 1e-6;
+  if (moved) {
+    const lens = sub.map(bzLen), L = lens.reduce((x, y) => x + y, 0), R = Math.min(MOVE_REACH, L / 2);
+    const f = x => x >= R ? 0 : 0.5 + 0.5 * Math.cos(Math.PI * x / R);
+    let acc = 0;
+    sub = sub.map((b, bi) => { const at = [acc, acc + lens[bi] / 3, acc + 2 * lens[bi] / 3, acc + lens[bi]]; acc += lens[bi];
+      return b.map((q, j) => add2(add2(q, mul2(dS, f(at[j]))), mul2(dE, f(L - at[j])))); });
+  }
+  sub[0][0] = [...S]; sub.at(-1)[3] = [...E];
+  const merged = { kind: moved ? 'shaped' : 'orig', bz: sub, corner: prev.corner };
+  const rest = path.segs.filter((_, i) => i !== k && i !== pi);
   path.segs = k === 0 ? rest.concat([merged]) : rest.slice(0, k - 1).concat([merged], rest.slice(k - 1));
 }
 const anchorPt = (path, k) => path.segs[k].bz[0][0];
@@ -2498,6 +2520,7 @@ function sizeEdit() {
 }
 function chooseEditItem(k) {
   edit.key = k; edit.sel = -1; edit.msg = ''; edit.view = null;
+  try { localStorage.setItem('chone-fit-lab-edit-item', k); } catch (e) { /* fine */ }
   renderEditItems(); fitEditView(); syncEditBox(); drawEdit();
 }
 function renderEditItems() { pieceChips($('editWhich'), p => p.key === edit.key, p => chooseEditItem(p.key)); }
@@ -2541,7 +2564,7 @@ function drawEdit() {
   if (k >= 0 && k < n) { // handles of the chosen point
     for (const hd of editHandles(path, k)) {
       const a = S(hd.from), b = S(hd.pt);
-      g.strokeStyle = css('--accent'); g.lineWidth = 1; g.globalAlpha = hd.real ? 1 : 0.5; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
+      g.strokeStyle = css('--accent'); g.lineWidth = 1; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
       g.fillStyle = css('--panel'); g.beginPath(); g.arc(...b, 4.5, 0, Math.PI * 2); g.fill(); g.stroke(); g.globalAlpha = 1;
     }
   }
@@ -2553,14 +2576,52 @@ function drawEdit() {
   }
 }
 // The two handles of point k: 'in' (end of the stretch before it) and 'out' (start of the stretch after it).
-// A handle of a stretch that's still the DXF curve is shown faint, where it would be; dragging it makes it real.
+// Every point has both; how each one works depends on its stretch (see sideInfo).
 function editHandles(path, k) {
-  const n = path.segs.length, out = [], prev = path.segs[(k - 1 + n) % n], next = path.segs[k];
-  if (n < 2) return out;
-  const fo = segFit(next), fi = segFit(prev);
-  if (next.kind === 'edit' || fo.err <= FIT_TOL) out.push({ side: 'out', from: next.bz[0][0], pt: next.kind === 'edit' ? next.bz[0][1] : fo.bz[1], real: next.kind === 'edit' });
-  if (prev.kind === 'edit' || fi.err <= FIT_TOL) out.push({ side: 'in', from: prev.bz.at(-1)[3], pt: prev.kind === 'edit' ? prev.bz[0][2] : fi.bz[2], real: prev.kind === 'edit' });
-  return out;
+  if (!path.anch) return [];
+  const n = path.segs.length, o = sideInfo(path, k, true), i = sideInfo(path, (k - 1 + n) % n, false);
+  return [{ side: 'out', from: o.a, pt: o.pt, real: o.mode === 'direct' }, { side: 'in', from: i.a, pt: i.pt, real: i.mode === 'direct' }];
+}
+// One side of a point: the stretch segs[si], at its start (atStart) or its end. How its handle works:
+//  'direct'  the stretch is one curve: the handle is that curve's control point (exactly a pen tool)
+//  'bend'    the stretch is the DXF curve (or reshaped from it), many curves: the handle stands where one curve's
+//            control point would be, and dragging it bends the whole stretch to the next point exactly as moving
+//            that control point would bend that one curve (W, below), keeping the stretch's own detail.
+//            With only one point there is no "next point", so it bends the outline within MOVE_REACH instead.
+// Returns { mode, a (the point), pt (handle end), W (bend weights per curve point) }.
+function sideInfo(path, si, atStart) {
+  const seg = path.segs[si], n = path.segs.length, a = atStart ? seg.bz[0][0] : seg.bz.at(-1)[3];
+  if (seg.kind === 'edit' && n > 1) return { mode: 'direct', a, pt: atStart ? seg.bz[0][1] : seg.bz[0][2] };
+  if (atStart ? seg.head : seg.tail) return { mode: 'direct', a, pt: atStart ? seg.bz[0][1] : seg.bz.at(-1)[2] };
+  if (n > 1) {
+    // where the handle is drawn: a single curve's control point if one curve is close to this stretch; otherwise
+    // along the outline's own direction at the point, at most 1" (or a third of the stretch) long, so it stays in view
+    const f = segFit(seg), L = seg.bz.reduce((x, b) => x + bzLen(b), 0), fp = atStart ? f.bz[1] : f.bz[2];
+    const pt = f.err <= FIT_TOL ? fp : add2(a, mul2(atStart ? startDir(seg.bz) : endDir(seg.bz), Math.min(len2(sub2(fp, a)), L / 3, 1)));
+    return { mode: 'bend', a, pt, W: segWeights(seg, u => atStart ? 3 * (1 - u) ** 2 * u : 3 * (1 - u) * u * u) };
+  }
+  const lens = seg.bz.map(bzLen), L = lens.reduce((x, y) => x + y, 0), R = Math.min(L, MOVE_REACH), lam = R / 3;
+  const dir = atStart ? startDir(seg.bz) : endDir(seg.bz);
+  return { mode: 'bend', a, pt: add2(a, mul2(dir, lam)), W: segWeights(seg, (u, x) => { const sd = atStart ? x : L - x; return sd < R ? (sd / lam) * (1 - sd / R) ** 2 : 0; }) };
+}
+// A weight for every curve point of a stretch: fn(u, x), u = how far along it is (0..1), x = the same in inches.
+function segWeights(seg, fn) {
+  const lens = seg.bz.map(bzLen), L = lens.reduce((x, y) => x + y, 0) || 1;
+  let acc = 0;
+  return seg.bz.map((b, i) => { const at = [acc, acc + lens[i] / 3, acc + 2 * lens[i] / 3, acc + lens[i]]; acc += lens[i]; return at.map(x => fn(x / L, x)); });
+}
+// Move every curve point of stretch si by (dx, dy) times its weight.
+function nudgeSeg(seg, W, dx, dy) {
+  seg.bz = seg.bz.map((b, bi) => b.map((pt, j) => [pt[0] + dx * W[bi][j], pt[1] + dy * W[bi][j]]));
+  if (seg.kind === 'orig') seg.kind = 'shaped';
+  delete seg._fit;
+}
+// Weights for pulling a spot of a stretch: 1 at the spot (sg inches along it), 0 at both ends, smooth in between.
+function bumpWeights(seg, sg) {
+  const lens = seg.bz.map(bzLen), L = lens.reduce((x, y) => x + y, 0), g = Math.min(L - 1e-6, Math.max(1e-6, sg));
+  let acc = 0;
+  return seg.bz.map((b, i) => { const at = [acc, acc + lens[i] / 3, acc + 2 * lens[i] / 3, acc + lens[i]]; acc += lens[i];
+    return at.map(x => x <= g ? 0.5 - 0.5 * Math.cos(Math.PI * x / g) : 0.5 - 0.5 * Math.cos(Math.PI * (L - x) / (L - g))); });
 }
 // Rebuild the item's 3D piece from its path: right away when `now`, else at most every 120 ms while dragging.
 function rebuildFromPath(now) {
@@ -2603,6 +2664,8 @@ function syncEditBox() {
   for (const id of ['editReset', 'editSaveAs', 'editOverwrite', 'editDelPt', 'editShowBase']) $(id).disabled = !on;
   $('editOverwrite').textContent = src ? `Overwrite ${baseName(src.file)}` : 'Overwrite the DXF';
   $('editDelPt').disabled = !on || edit.sel < 0;
+  const selSeg = on && p.path.anch && edit.sel >= 0 ? p.path.segs[edit.sel] : null;
+  $('editCorner').disabled = !selSeg; $('editCorner').textContent = selSeg?.corner ? 'Make smooth' : 'Make corner';
   if (on) {
     const st = pathStats(p), n = p.path.anch ? p.path.segs.length : 0, ne = p.path.segs.filter(s => s.kind !== 'orig').length;
     $('editStats').textContent = `${n} point${n === 1 ? '' : 's'}, ${ne} stretch${ne === 1 ? '' : 'es'} reshaped. Outline ${st.len.toFixed(2)}" round, area ${st.area.toFixed(2)} sq in`
@@ -2622,6 +2685,7 @@ function editHit(sx, sy) {
   if (loc && loc.d * edit.view.z * pieceScale(p) <= 6) return { type: 'line', loc };
   return null;
 }
+const breakKey = ev => ev.altKey || ev.metaKey; // ⌘ Command or ⌥ Option (Alt on Windows): curve one side only
 const evPt = ev => { const r = ecv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
 ecv.addEventListener('pointerdown', ev => {
   const p = editItem(); if (!p || !edit.view) return;
@@ -2630,7 +2694,7 @@ ecv.addEventListener('pointerdown', ev => {
   edit.msg = '';
   if (!hit) { edit.drag = { type: 'pan', sx, sy, v: { ...edit.view } }; ecv.style.cursor = 'grabbing'; return; }
   checkpoint();
-  edit.drag = { ...hit, sx, sy, ck: undoStack.length, moved: false, alt: ev.altKey, q0: fromScreen(p, sx, sy) };
+  edit.drag = { ...hit, sx, sy, ck: undoStack.length, moved: false, alt: breakKey(ev), q0: fromScreen(p, sx, sy) };
   if (hit.type === 'anchor') { edit.sel = hit.k; drawEdit(); syncEditBox(); }
 });
 ecv.addEventListener('pointermove', ev => {
@@ -2649,41 +2713,57 @@ ecv.addEventListener('pointermove', ev => {
     const before = clone(path), fail = () => { path.segs = before.segs; path.anch = before.anch; stopEditDrag(true); };
     if (d.type === 'anchor') { d.a0 = clone(path); d.w = anchorWeights(d.a0, d.k); }
     if (d.type === 'handle') {
-      const k = edit.sel, own = d.side === 'out' ? k : (k - 1 + n) % n, other = d.side === 'out' ? (k - 1 + n) % n : k;
-      if (!makeEditable(path, own)) return void fail();
+      const k = edit.sel, out = d.side === 'out';
+      d.own = { si: out ? k : (k - 1 + n) % n, atStart: out }; d.other = { si: out ? (k - 1 + n) % n : k, atStart: !out };
       if (d.alt) path.segs[k].corner = true;
-      d.smooth = !path.segs[k].corner && makeEditable(path, other);
-      if (!path.segs[k].corner && !d.smooth) path.segs[k].corner = true, edit.msg = 'The other side couldn\'t follow, so this point is now a corner.';
+      d.smooth = !path.segs[k].corner;
+      d.before = clone(path); // as it was before this drag (for Alt pressed mid-drag)
       d.a0 = clone(path);
+      for (const sd of [d.own, d.other]) Object.assign(sd, sideInfo(d.a0, sd.si, sd.atStart));
+      d.other.len = len2(sub2(d.other.pt, d.other.a));
     }
     if (d.type === 'line') {
-      if (!makeEditable(path, d.loc.si)) return void fail();
-      const b = path.segs[d.loc.si].bz[0], l = locatePath({ segs: [{ bz: [b] }] }, ...d.loc.pt);
-      d.t = Math.min(0.9, Math.max(0.1, l.t)); d.a0 = clone(path); edit.sel = -1;
+      if (!path.anch) { edit.msg = 'Add a point first.'; return void fail(); }
+      const seg = path.segs[d.loc.si];
+      if (seg.kind === 'edit' && path.segs.length > 1) { // one curve: pen-tool style
+        const l = locatePath({ segs: [{ bz: [seg.bz[0]] }] }, ...d.loc.pt);
+        d.t = Math.min(0.9, Math.max(0.1, l.t)); d.mode = 'bow';
+      } else { // the whole stretch bends the way one curve between its two points would, keeping its detail
+        const lens = seg.bz.map(bzLen), L = lens.reduce((x, y) => x + y, 0);
+        let sg = d.loc.t * lens[d.loc.bi]; for (let i = 0; i < d.loc.bi; i++) sg += lens[i];
+        const t = Math.min(0.9, Math.max(0.1, sg / L)), kk = 1 / (3 * t * (1 - t) * ((1 - t) ** 2 + t * t));
+        d.W = path.segs.length > 1 ? segWeights(seg, u => kk * ((1 - t) * 3 * (1 - u) ** 2 * u + t * 3 * (1 - u) * u * u)) : bumpWeights(seg, sg);
+        d.mode = 'bump';
+      }
+      d.a0 = clone(path); edit.sel = -1;
     }
+  }
+  if (d.type === 'handle' && d.smooth && breakKey(ev)) { // ⌘/Alt pressed mid-drag: break the point, the other side goes back
+    d.smooth = false; path.segs[edit.sel].corner = true; path.segs[d.other.si] = clone(d.before).segs[d.other.si];
   }
   const dx = q[0] - d.q0[0], dy = q[1] - d.q0[1], A = d.a0;
   if (d.type === 'anchor') { // every curve point next to the point follows it by its own weight (see anchorWeights)
     for (const [si, W] of d.w) {
-      path.segs[si].bz = A.segs[si].bz.map((b, bi) => b.map((pt, j) => [pt[0] + dx * W[bi][j], pt[1] + dy * W[bi][j]]));
-      if (path.segs[si].kind === 'orig') path.segs[si].kind = 'shaped';
+      path.segs[si].bz = A.segs[si].bz.map(b => b.map(pt => [...pt])); nudgeSeg(path.segs[si], W, dx, dy);
     }
-  } else if (d.type === 'handle') {
-    const k = edit.sel, pk = (k - 1 + n) % n;
-    if (d.side === 'out') {
-      path.segs[k].bz[0][1] = q;
-      if (d.smooth) { const o = A.segs[pk].bz[0], L = len2(sub2(o[2], o[3])), u = unit2(sub2(path.segs[k].bz[0][0], q)); path.segs[pk].bz[0][2] = add2(o[3], mul2(u, L)); }
-    } else {
-      path.segs[pk].bz[0][2] = q;
-      if (d.smooth) { const o = A.segs[k].bz[0], L = len2(sub2(o[1], o[0])), u = unit2(sub2(path.segs[pk].bz[0][3], q)); path.segs[k].bz[0][1] = add2(o[0], mul2(u, L)); }
+  } else if (d.type === 'handle') { // the handle follows the pointer; unless it's a corner, the other handle turns with it
+    const moves = [[d.own, q]];
+    if (d.smooth) moves.push([d.other, add2(d.other.a, mul2(unit2(sub2(d.own.a, q)), d.other.len))]);
+    for (const [sd] of moves) path.segs[sd.si] = { ...path.segs[sd.si], bz: A.segs[sd.si].bz.map(b => b.map(pt => [...pt])) };
+    for (const [sd, to] of moves) {
+      const seg = path.segs[sd.si];
+      if (sd.mode === 'direct') { seg.bz[sd.atStart ? 0 : seg.bz.length - 1][sd.atStart ? 1 : 2] = to; delete seg._fit; }
+      else nudgeSeg(seg, sd.W, to[0] - sd.pt[0], to[1] - sd.pt[1]);
     }
-  } else if (d.type === 'line') { // bend the stretch so the spot you grabbed follows the pointer (both handles share the pull)
+  } else if (d.type === 'line' && d.mode === 'bow') { // one curve: the spot you grabbed follows the pointer (both handles share the pull)
     const t = d.t, o = A.segs[d.loc.si].bz[0], kk = 1 / (3 * t * (1 - t) * ((1 - t) ** 2 + t * t));
     path.segs[d.loc.si].bz[0] = [o[0], add2(o[1], mul2([dx, dy], kk * (1 - t))), add2(o[2], mul2([dx, dy], kk * t)), o[3]];
+  } else if (d.type === 'line') { // longer stretch: it bulges, the spot you grabbed following the pointer
+    const seg = path.segs[d.loc.si]; seg.bz = A.segs[d.loc.si].bz.map(b => b.map(pt => [...pt])); nudgeSeg(seg, d.W, dx, dy);
   }
   drawEdit(); rebuildFromPath(false);
 });
-const clone = path => ({ anch: path.anch, base: path.base, segs: path.segs.map(s => ({ kind: s.kind, corner: s.corner, bz: s.bz.map(b => b.map(q => [...q])) })) });
+const clone = path => ({ anch: path.anch, base: path.base, segs: path.segs.map(s => ({ kind: s.kind, corner: s.corner, head: !!s.head, tail: !!s.tail, bz: s.bz.map(b => b.map(q => [...q])) })) });
 function stopEditDrag(cancel) {
   const d = edit.drag; edit.drag = null; ecv.style.cursor = 'grab';
   if (!d || d.type === 'pan') return;
@@ -2696,7 +2776,11 @@ ecv.addEventListener('pointerup', ev => {
   if (d.type === 'pan') return;
   if (!d.moved) {
     if (d.type === 'line') { edit.sel = addAnchor(p.path, d.loc); save(); } // a new point doesn't change the shape
-    else dropCheckpoint(d.ck);
+    else if (d.alt && (d.type === 'handle' || d.type === 'anchor')) { // Alt-click: break the point (or, on a point, switch it)
+      const sg = p.path.segs[edit.sel];
+      sg.corner = d.type === 'handle' ? true : !sg.corner;
+      edit.msg = sg.corner ? 'Corner point: its two handles now move separately.' : 'Smooth point: its handles move together again.'; save();
+    } else dropCheckpoint(d.ck);
   } else rebuildFromPath(true);
   syncEditBox(); drawEdit();
 });
@@ -2718,6 +2802,12 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') { edit.sel = -1; drawEdit(); syncEditBox(); }
 });
 $('editDelPt').addEventListener('click', deleteSelectedPoint);
+$('editCorner').addEventListener('click', () => {
+  const p = editItem(), sg = p?.path?.anch && edit.sel >= 0 ? p.path.segs[edit.sel] : null; if (!sg) return;
+  checkpoint(); sg.corner = !sg.corner;
+  edit.msg = sg.corner ? 'Corner point: its two handles now move separately.' : 'Smooth point: its handles move together again.';
+  save(); syncEditBox(); drawEdit();
+});
 $('editFit').addEventListener('click', () => { fitEditView(); drawEdit(); });
 $('editShowBase').addEventListener('change', e => { edit.showBase = e.target.checked; drawEdit(); });
 $('editReset').addEventListener('click', () => {

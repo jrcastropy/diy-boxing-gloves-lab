@@ -39,9 +39,9 @@ The **Edit pattern** tab reshapes an item's flat outline with a pen tool, and th
 2. **Click the outline** to add a point. You shape the stretch between two points:
    - **Drag the line** to curve it.
    - **Drag a point** to move it, even if it's the only one. The line to the next point stretches to follow. On a long stretch, only the 2" beside the point bends, and the rest of the outline stays put.
-   - **Drag a point's handles** to change how the curve leaves it. Alt-drag a handle to make the point a corner.
-   - Select a point and press **Delete** to remove it.
-   - Dragging a line or a handle turns that stretch into one curve. If it's too long or curvy for that, the viewer says so; add a point in it first.
+   - **Drag a point's handles** to change how the curve leaves it. Every point has a handle on each side. On a short stretch the handle shapes that whole stretch, like a pen tool. On a long one it bends the outline beside the point, fading out within 2". The other handle turns with it. To curve one side only, make the point a corner: hold ⌘ Command (or ⌥ Option / Alt) and click or drag a handle, ⌘-click the point, or click **Make corner**. A corner's two handles then move separately, and **Make smooth** joins them again.
+   - Select a point and press **Delete** to remove it. The outline either side of it, up to the neighbouring points, goes back to the DXF outline. Deleting the last point puts the whole outline back.
+   - **Drag the line** between two points to curve it. A short stretch becomes one curve. A longer one bulges smoothly, with both points staying put.
 3. Drag the background to pan, scroll to zoom, and use **Fit to view** to see the whole piece again. **Show the DXF outline** draws the original for comparison. ⌘Z undoes each step, and **Reset to the DXF outline** starts over.
 4. **Save as new DXF…** asks for a name and writes a copy of the item's DXF into `dxf/` with only this piece's outline changed. The rest of the file stays as it is: labels, notches and the other pieces. **Overwrite** writes back into the item's own DXF after asking. Either way the piece is saved exactly as shown, as a smooth curve, and the item then points at the saved file.
 
