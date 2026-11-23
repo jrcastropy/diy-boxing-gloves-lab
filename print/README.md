@@ -15,6 +15,7 @@ True-size A4 PDFs of pattern pieces, ready to print. **Print at 100% ("actual si
 | `moulds-A4-tiled-butt.pdf` | Foam Mould 1 (pages 1–2) and Mould 2 (pages 3–4) from the original DXF, true size, butt joins. Mould 2 prints upside down, the way it is drawn on the sheet. | `scripts/print_free.py` |
 | `mould1-minified-chone-A4-tiled-butt.pdf` | Foam Mould 1 as the minified Chone (the Chone at 79.3%, from `mould1 minified chone.dxf`), true size on 2 A4 pages, butt joins. | `scripts/print_free.py` |
 | `mould1-smoothed-A4-tiled-butt.pdf` | **Latest Mould 1**, from `mould1 minified chone - edited - smoothed all.dxf`: the hand-edited thumb with the whole outline smoothed. True size on 2 A4 pages, butt joins. | `scripts/print_free.py` |
+| `mould1-smoothed-thumb+0.25in-A4-tiled-butt.pdf` (and `+0.5in`, `+0.75in`) | The latest Mould 1 with its thumb 0.25" (0.5", 0.75") longer, from the matching `smoothed all thumb` DXF. True size, butt joins: 2 pages (2 pages, 3 pages for `+0.75in`). | `scripts/print_free.py` |
 
 On the `-tiled-butt` prints, each page has a solid border around the part it owns. Cut exactly on that border. Use the small map in the top-right corner to see where the page goes, butt the cut edges together and tape them. There are no overlaps and no alignment marks. Some borders are L-shaped where pages step around each other.
 

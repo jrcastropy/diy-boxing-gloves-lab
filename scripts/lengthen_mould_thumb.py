@@ -15,6 +15,12 @@ Preview (no DXF written): several amounts side by side in one image.
 Same amounts, each laid inside the Chone, with and without the current Mould 1 behind (2 images each):
   uv run --with ezdxf --with shapely --with matplotlib python scripts/lengthen_mould_thumb.py preview-in-chone \
     "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders 0.25 0.5 0.75
+For an outline that is already smooth curves (the smoothed Mould 1), use write-smooth instead of write: it moves only
+the thumb's own curves, so the rest of the outline (corners, straight bottom edge) stays exactly as it is:
+  uv run --with ezdxf --with shapely --with matplotlib --with scipy python scripts/lengthen_mould_thumb.py write-smooth \
+    "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all.dxf" \
+    "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.5in.dxf" renders/mould1-smoothed-thumb-longer-0.5in.png 0.5
+Add --name NAME (e.g. --name smoothed) to name the previews mould1-NAME-thumb-longer-... and label the current Mould 1 as NAME.
 Write a DXF (Mould 1 replaced in place, same handle) and a check render; refuses to overwrite:
   uv run --with ezdxf --with shapely --with matplotlib python scripts/lengthen_mould_thumb.py write \
     "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb +0.5in.dxf" \
@@ -37,6 +43,7 @@ from render_pieces import poly  # noqa: E402
 
 CHONE_CUT, CHONE_STITCH, MOULD1 = "95", "96", "320"
 STEP = 0.02  # inches between outline samples
+NAME = None  # --name NAME: which Mould 1 this is, for preview file names and labels (default: the minified Chone)
 
 
 def load(src):
@@ -92,7 +99,7 @@ def report(M, N, info, amount):
 def draw(ax, M, N, info, amount, len0, len1):
     m, a = info["m"], info["a"]
     p = np.array([-a[1], a[0]])
-    ax.plot(*np.vstack([M, M[:1]]).T, color="0.6", lw=1, label="Mould 1 now (minified Chone)")
+    ax.plot(*np.vstack([M, M[:1]]).T, color="0.6", lw=1, label=f"Mould 1 now ({NAME or 'minified Chone'})")
     ax.plot(*np.vstack([N, N[:1]]).T, color="orange", lw=2, label=f"Thumb {amount:g}\" longer")
     ax.plot(*np.array([m - a * 0.5, m + a * (len1 + 0.5)]).T, "r-.", lw=0.8, label="Thumb centre line")
     tip0 = M[np.argmax((M - m) @ a)]
@@ -145,14 +152,14 @@ def preview_in_chone(src, out_dir, amounts):
             ax.plot(*np.vstack([C, C[:1]]).T, "k", lw=1, label="Chone cut line")
             ax.plot(*np.vstack([S, S[:1]]).T, "k--", lw=0.8, label="Chone stitch line")
             if with_old:
-                ax.plot(*np.vstack([M, M[:1]]).T + shift[:, None], color="0.65", lw=1, label="Mould 1 now (minified Chone)")
+                ax.plot(*np.vstack([M, M[:1]]).T + shift[:, None], color="0.65", lw=1, label=f"Mould 1 now ({NAME or 'minified Chone'})")
             ax.plot(*np.vstack([N, N[:1]]).T + shift[:, None], color="orange", lw=2, label=f"Mould 1, thumb {amt:g}\" longer")
             ax.set_aspect("equal")
             ax.grid(alpha=0.25)
             ax.legend(loc="upper left", fontsize=8)
             ax.set_title(f"PREVIEW (no DXF): Mould 1 thumb {amt:g}\" longer, neck to tip {len0:.2f}\" → {len1:.2f}\"\n"
                          f"{Path(src).name}, flipped back, wrist middles together, raised 0.3\"", fontsize=10)
-            name = f"mould1-thumb-longer-{amt:g}in-preview{'-with-old' if with_old else ''}.png"
+            name = f"mould1-{NAME + '-' if NAME else ''}thumb-longer-{amt:g}in-preview{'-with-old' if with_old else ''}.png"
             dst = Path(out_dir) / name
             if dst.exists():
                 sys.exit(f"refusing to overwrite existing file: {dst}")
@@ -193,10 +200,117 @@ def write(src, dst, png, amount):
     fig.savefig(png, dpi=100, bbox_inches="tight")
 
 
+def write_smooth(src, dst, png, amount, preview_check=True):
+    """Like write(), but for an outline that is already a smooth Bezier chain (e.g. the smoothed Mould 1).
+
+    Instead of re-drawing the whole outline through sample points, this moves only the control points of the thumb's
+    own curves, so every other curve (corners, straight bottom edge) stays exactly as it is. Each control point slides
+    along the thumb's centre line by amount * w, where w goes from 0 on the neck line (notch to the nearest bottom-edge
+    point) to 1 at the tip, easing in from the neck (zero slope there) so no kink appears where the thumb meets the hand.
+    """
+    from dxf_link import entity_chain
+    if Path(dst).exists():
+        sys.exit(f"refusing to overwrite existing file: {dst}")
+    doc = ezdxf.readfile(src)
+    ent = doc.entitydb[MOULD1]
+    raw, fx, M = load(src)
+    _, info = lengthen(M, amount)
+    flip = lambda P: np.asarray(P) * [-1, 1] + [2 * fx, 0]  # DXF <-> the flipped frame M lives in (its own inverse)
+    chain = np.array(entity_chain(ent, 1.0))
+    F = flip(chain)  # (N, 4, 2), flipped frame
+    N = len(F)
+    J = F[:, 0]
+    # the thumb runs between two curve joints: the one at the notch and the one at the neck's bottom-edge point. The
+    # neck line goes through exactly those two joints, so the shift is zero there and nothing past them moves.
+    j1 = int(np.argmin(np.hypot(*(J - M[info["mn"]]).T)))
+    j2 = int(np.argmin(np.hypot(*(J - M[info["i_neck"]]).T)))
+    tip = M[info["i_tip"]]
+    jt = int(np.argmin(np.hypot(*(F[:, 1:3].mean(1) - tip).T)))
+    run = lambda s0, s1: [(s0 + k) % N for k in range((s1 - s0) % N)]
+    moving = run(j1, j2) if jt in run(j1, j2) else run(j2, j1)
+    notch, neck = J[j1], J[j2]
+    a = info["a"]
+    nrm = np.array([-(neck - notch)[1], (neck - notch)[0]])
+    nrm /= np.linalg.norm(nrm)
+    if (tip - notch) @ nrm < 0:
+        nrm = -nrm  # points from the neck line out toward the tip
+    reach = (tip - notch) @ nrm
+    EASE = 0.25  # share of the neck-to-tip distance over which the stretch eases in from the neck line
+
+    def g(v):
+        v = np.clip(v, 0, None)
+        return np.where(v < EASE, v * v / (2 * EASE), v - EASE / 2)
+
+    def shift(P):  # P in the flipped frame -> moved points
+        w = g(((P - notch) @ nrm) / reach) / g(np.array(1.0))
+        return P + np.outer(amount * w, a)
+
+    G = F.copy()
+    for j in moving:
+        G[j] = shift(F[j])
+    # one point per joint: the curves either side of a joint moved the same point the same way, so they still meet;
+    # keep the handles either side of each moved joint in line, so the outline stays smooth there
+    kinks = []
+    for j in sorted(set(moving) | {(moving[0] - 1) % N}):  # every joint a moved curve touches
+        k = (j + 1) % N
+        P, h0, h1 = G[j][3], G[j][2], G[k][1]
+        u0, u1 = P - h0, h1 - P
+        l0, l1 = np.linalg.norm(u0), np.linalg.norm(u1)
+        if l0 < 1e-9 or l1 < 1e-9:
+            continue
+        ang = np.degrees(np.arccos(np.clip(u0 @ u1 / l0 / l1, -1, 1)))
+        before = F[j][3] - F[j][2], F[k][1] - F[k][0]
+        was = np.degrees(np.arccos(np.clip(before[0] @ before[1] / np.linalg.norm(before[0]) / np.linalg.norm(before[1]), -1, 1)))
+        if was < 0.5 and ang > 1e-6:  # it was smooth: make it exactly smooth again
+            d = u0 / l0 + u1 / l1
+            d /= np.linalg.norm(d)
+            G[j][2], G[k][1] = P - d * l0, P + d * l1
+        kinks.append(ang if was < 0.5 else 0)
+    out = flip(G)
+    ctrl = [out[0][0]] + [p for b in out for p in b[1:]]
+    knots = [0, 0, 0, 0] + [x for j in range(1, N) for x in (j, j, j)] + [N] * 4
+    ent.control_points = [(x, y, 0) for x, y in ctrl]
+    ent.knots = [float(x) for x in knots]
+    ent.fit_points = []
+    ent.dxf.degree, ent.dxf.flags = 3, 8
+    doc.saveas(dst)
+
+    # checks, from the saved file
+    chk = np.array(poly(ezdxf.readfile(dst).entitydb[MOULD1]))
+    S = resample(flip(chk), STEP)
+    len0 = ((M[info["arc"]] - info["m"]) @ a).max()
+    len1 = ((S - info["m"]) @ a).max()
+    rest = np.array([q for q, ww in zip(M, info["w"]) if ww == 0 and (q - notch) @ nrm < 0])
+    still = Polygon(flip(chk)).exterior
+    off = max(still.distance(Point(q)) for q in rest)
+    Np, _ = lengthen(M, amount)
+    vs = max(Polygon(Np).exterior.distance(Point(q)) for q in S)
+    st = np.linspace(0.5, 2.5, 5)
+    w0 = widths(LineString(M[info["arc"]]), info["m"], a, st)
+    print(f"+{amount:g}\": {len(moving)} of {N} curves moved; thumb neck-to-tip {len0:.3f} -> {len1:.3f} in; "
+          f"area {Polygon(M).area:.2f} -> {Polygon(S).area:.2f} sq in; valid {Polygon(S).is_valid}")
+    print(f"   rest of Mould 1 off its old line by at most {off:.5f} in; largest bend at a moved joint before its handles were lined up again {max(kinks):.4f} deg (0 after); "
+          f"differs from the preview by at most {vs:.3f} in")
+    print(f"Saved {dst}")
+    fig, ax = plt.subplots(figsize=(8, 9))
+    draw(ax, M, S, info, amount, len0, len1)
+    ax.legend(loc="upper right", fontsize=8)
+    ax.set_title(f"Mould 1 thumb {amount:g}\" longer (from the saved DXF), shown flipped: {len0:.2f}\" → {len1:.2f}\"\n{Path(dst).name}", fontsize=10)
+    ax.set_xlim(M[:, 0].min() - 1.2, M[:, 0].min() + 7)
+    ax.set_ylim(M[:, 1].min() - 0.5, M[:, 1].min() + 7)
+    fig.savefig(png, dpi=100, bbox_inches="tight")
+
+
 if __name__ == "__main__":
+    if "--name" in sys.argv:
+        i = sys.argv.index("--name")
+        NAME = sys.argv[i + 1]
+        del sys.argv[i:i + 2]
     if sys.argv[1] == "preview-in-chone":
         preview_in_chone(sys.argv[2], sys.argv[3], [float(x) for x in sys.argv[4:]])
     elif sys.argv[1] == "preview":
         preview(sys.argv[2], sys.argv[3], [float(x) for x in sys.argv[4:]])
+    elif sys.argv[1] == "write-smooth":
+        write_smooth(sys.argv[2], sys.argv[3], sys.argv[4], float(sys.argv[5]))
     else:
         write(sys.argv[2], sys.argv[3], sys.argv[4], float(sys.argv[5]))
