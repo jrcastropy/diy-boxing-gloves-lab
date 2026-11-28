@@ -18,10 +18,17 @@ Chone Cuff's top edge, so the two butt together with the margin that used to be
 added by hand when tracing. The added strip has straight up-and-down sides, so
 both edges keep their length. The Cuff is rewritten as a closed polyline.
 
+Step 4 (trim-cuff): the Cuff's bottom is cut straight across so it lines up with
+the Front Palm's bottom edge in the finished glove. The placement comes from the
+reference pattern (normally dxf/latest.dxf), the same rule as overlay_palm.py:
+the Cuff's top outer line on the Chone's bottom inner line, and the palm's lower
+thumb-notch corner on the left end of that join.
+
 Usage:
   python scripts/leather_cut.py clean dxf/latest.dxf "dxf/<new name>.dxf"
   python scripts/leather_cut.py split-chone "dxf/<step 1>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py join-edges "dxf/<step 2>.dxf" "dxf/<new name>.dxf"
+  python scripts/leather_cut.py trim-cuff "dxf/<step 3>.dxf" "dxf/<new name>.dxf" dxf/latest.dxf
   python scripts/leather_cut.py render "dxf/<leather cut>.dxf" renders/<folder>
     (one PNG per layer, i.e. per piece)
 All refuse to overwrite.
@@ -193,6 +200,41 @@ def join_edges(src, dst):
     doc.saveas(dst)
 
 
+def trim_cuff(src, dst, ref):
+    from shapely.geometry import box, Polygon
+
+    from join_chone_cuff import join
+    from overlay_palm import PALM_OUTER, notch_corner
+
+    if Path(dst).exists():
+        sys.exit(f"{dst} exists, not overwriting")
+    # Where the Cuff and the Front Palm sit in the finished glove, from the
+    # reference pattern. The cut pieces are still at the reference's sheet
+    # positions, so the same moves apply to them.
+    rdoc = ezdxf.readfile(ref)
+    px, py = notch_corner(rdoc.entitydb[PALM_OUTER])
+    palm_bottom = min(y for _, y in poly(rdoc.entitydb[PALM_OUTER]))
+    _, info = join(rdoc)  # moves the reference cuff into place; gives dx, dy
+    palm_dy = info["join_left"][1] - py
+    cut_y = palm_bottom + palm_dy - info["dy"]  # palm bottom, in the cut file's cuff position
+
+    doc = ezdxf.readfile(src)
+    msp = doc.modelspace()
+    outline = next(e for e in msp if e.dxf.layer == "chone-cuff" and not is_hole(e))
+    ring = [(x, y) for x, y, *_ in outline.get_points()]
+    g = Polygon(ring)
+    x0, y0, x1, y1 = g.bounds
+    if not y0 < cut_y < y1:
+        sys.exit(f"palm bottom ({cut_y:.3f}) is not inside the Cuff ({y0:.3f}..{y1:.3f}); nothing to trim")
+    g = g.intersection(box(x0 - 1, cut_y, x1 + 1, y1 + 1)).simplify(0.001)
+    msp.add_lwpolyline(list(g.exterior.coords)[:-1], close=True, dxfattribs={"layer": "chone-cuff"})
+    msp.delete_entity(outline)
+    doc.saveas(dst)
+    b = g.bounds
+    print(f"chone-cuff: cut {cut_y - y0:.3f} in ({(cut_y - y0) * 25.4:.1f} mm) off the bottom; "
+          f"now {b[2] - b[0]:.2f} x {b[3] - b[1]:.2f} in")
+
+
 def render_each(src, outdir):
     """One PNG per piece (per layer): its outline and holes, nothing around it."""
     from render_pieces import render
@@ -215,5 +257,6 @@ def render_each(src, outdir):
 
 
 if __name__ == "__main__":
-    step, src, dst = sys.argv[1:4]
-    {"clean": clean, "split-chone": split_chone, "join-edges": join_edges, "render": render_each}[step](src, dst)
+    step, *args = sys.argv[1:]
+    {"clean": clean, "split-chone": split_chone, "join-edges": join_edges,
+     "trim-cuff": trim_cuff, "render": render_each}[step](*args)
