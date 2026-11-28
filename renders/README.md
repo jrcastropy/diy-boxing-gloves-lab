@@ -5,6 +5,7 @@ PNG images of the pattern made by the scripts in [`../scripts/`](../scripts/). T
 | Image | What it shows | Made by |
 | --- | --- | --- |
 | `chone.png`, `chone-cuff.png`, `front-palm.png`, `thumb.png`, `thumb-panel.png`, `mould-1.png`, `mould-2.png`, `cuff-mould.png`, `scale-bar.png` | One pattern piece each, on its own | `render_pieces.py` |
+| `latest-leather/` (`front-palm.png`, `chone.png`, `chone-cuff.png`, `thumb.png`, `thumb-panel.png`) | The five leather pieces, one each on its own, from `latest.dxf` (a copy of `smoothed all thumb +0.75in +2cm`). Only Mould 1 differs from `smoothed all.dxf`, so these pieces are the same as in that file. | `render_pieces.py` on `dxf/latest.dxf`, keeping only the leather pieces |
 | `full-layout.png` | The whole pattern sheet, from the original DXF | not made by a script in this repo |
 | `chone-with-cuff.png` | The Chone Cuff joined to the bottom of the Chone | `join_chone_cuff.py` |
 | `palm-over-chone-with-cuff.png` | The Front Palm laid over the joined back | `overlay_palm.py` |
