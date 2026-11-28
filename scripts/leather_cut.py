@@ -24,11 +24,22 @@ reference pattern (normally dxf/latest.dxf), the same rule as overlay_palm.py:
 the Cuff's top outer line on the Chone's bottom inner line, and the palm's lower
 thumb-notch corner on the left end of that join.
 
+Layout (layout): lays the pieces out on cutting mats of a given size and writes
+one DXF per mat, with the mat's bottom-left corner at (0, 0). No mat border is
+drawn. Largest piece first, each goes as low, then as far left, as it fits on
+the first mat with room, 5 mm apart. Pieces turn only in 90-degree steps (so
+they keep their direction on the hide), except where TILT says otherwise: on
+the 14" x 15" mat the Chone body only fits tilted 41 degrees (about 1 mm spare).
+It also draws a preview PNG of each mat.
+
 Usage:
   python scripts/leather_cut.py clean dxf/latest.dxf "dxf/<new name>.dxf"
   python scripts/leather_cut.py split-chone "dxf/<step 1>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py join-edges "dxf/<step 2>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py trim-cuff "dxf/<step 3>.dxf" "dxf/<new name>.dxf" dxf/latest.dxf
+  python scripts/leather_cut.py layout "dxf/Laces Boxing 14OZ - leather cut - step4 cuff bottom trimmed to palm.dxf" 14 15
+    (writes "dxf/Laces Boxing 14OZ - leather cut - 14x15 mat <n> of <m>.dxf"
+    and renders/leather-cut-mat14x15-mat<n>.png)
   python scripts/leather_cut.py render "dxf/<leather cut>.dxf" renders/<folder>
     (one PNG per layer, i.e. per piece)
 All refuse to overwrite.
@@ -54,6 +65,12 @@ MAX_EXTEND = 1.25
 JOIN_ALLOWANCE = 5 * MM
 # Layer -> which flat edge gets the join allowance (-1 bottom, +1 top).
 JOIN_EDGES = {"chone-body": -1, "chone-cuff": +1}
+LAYOUT_GAP = 5 * MM
+LAYOUT_STEP = 0.05  # search grid, inches
+# Mat size -> {piece: allowed rotations} where a piece may not use 0/90/180/270.
+TILT = {(14.0, 15.0): {"chone-body": [41.0]}}
+PIECE_COLOURS = {"chone-body": "#333", "chone-thumb": "#777", "front-palm": "#c33",
+                 "chone-cuff": "#25c", "thumb": "#2a7", "thumb-panel": "#a5c"}
 
 
 def is_hole(e):
@@ -235,6 +252,116 @@ def trim_cuff(src, dst, ref):
           f"now {b[2] - b[0]:.2f} x {b[3] - b[1]:.2f} in")
 
 
+def layout(src, mat_w, mat_h):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from ezdxf.math import Matrix44
+    from shapely import affinity
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from shapely.prepared import prep
+
+    mat_w, mat_h = float(mat_w), float(mat_h)
+    tag = f"{mat_w:g}x{mat_h:g}"
+    doc = ezdxf.readfile(src)
+    pieces = {}
+    for e in doc.modelspace():
+        d = pieces.setdefault(e.dxf.layer, {"outline": None, "ents": []})
+        d["ents"].append(e)
+        if not is_hole(e):
+            ring = [(x, y) for x, y, *_ in e.get_points()] if e.dxftype() == "LWPOLYLINE" else poly(e)
+            d["outline"] = Polygon(ring).buffer(0)
+    rotations = {n: [0, 90, 180, 270] for n in pieces}
+    rotations.update(TILT.get((mat_w, mat_h), {}))
+
+    def place(placed, shape):
+        """Lowest, then leftmost, spot on the mat where shape fits, or None."""
+        x0, y0, x1, y1 = shape.bounds
+        w, h = x1 - x0, y1 - y0
+        if w > mat_w + 1e-9 or h > mat_h + 1e-9:
+            return None
+        taken = prep(unary_union([q.buffer(LAYOUT_GAP) for *_, q in placed])) if placed else None
+        nx = int((mat_w - w) / LAYOUT_STEP + 1e-9) + 1
+        ny = int((mat_h - h) / LAYOUT_STEP + 1e-9) + 1
+        for iy in range(ny):
+            for ix in range(nx):
+                dx = min(ix * LAYOUT_STEP, mat_w - w) - x0
+                dy = min(iy * LAYOUT_STEP, mat_h - h) - y0
+                q = affinity.translate(shape, dx, dy)
+                if taken is None or not taken.intersects(q):
+                    return dx, dy, q
+        return None
+
+    mats = []  # each: list of (name, rotation, dx, dy, placed outline)
+    for name in sorted(pieces, key=lambda n: -pieces[n]["outline"].area):
+        best = None
+        for mi in range(len(mats) + 1):
+            placed = mats[mi] if mi < len(mats) else []
+            for r in rotations[name]:
+                res = place(placed, affinity.rotate(pieces[name]["outline"], r, origin=(0, 0)))
+                if res:
+                    key = (mi, res[2].bounds[1] + res[2].bounds[3])  # earliest mat, then lowest
+                    if best is None or key < best[0]:
+                        best = (key, mi, r, res)
+            if best:
+                break
+        if best is None:
+            sys.exit(f"{name} does not fit on a {tag} mat")
+        _, mi, r, (dx, dy, q) = best
+        if mi == len(mats):
+            mats.append([])
+        mats[mi].append((name, r, dx, dy, q))
+
+    n = len(mats)
+    outs = [(Path(src).parent / f"Laces Boxing 14OZ - leather cut - {tag} mat {i + 1} of {n}.dxf",
+             Path("renders") / f"leather-cut-mat{tag}-mat{i + 1}.png") for i in range(n)]
+    for d, png in outs:
+        for f in (d, png):
+            if f.exists():
+                sys.exit(f"{f} exists, not overwriting")
+    for i, (placed, (dxf_out, png_out)) in enumerate(zip(mats, outs)):
+        out = ezdxf.readfile(src)
+        msp = out.modelspace()
+        keep = {p[0] for p in placed}
+        for e in list(msp):
+            if e.dxf.layer not in keep:
+                msp.delete_entity(e)
+        for name, r, dx, dy, _ in placed:
+            m = Matrix44.chain(Matrix44.z_rotate(r * 3.141592653589793 / 180), Matrix44.translate(dx, dy, 0))
+            for e in msp:
+                if e.dxf.layer == name:
+                    e.transform(m)
+        out.saveas(dxf_out)
+
+        fig, ax = plt.subplots(figsize=(8 * mat_w / 14, 8.6 * mat_h / 15))
+        ax.add_patch(plt.Rectangle((0, 0), mat_w, mat_h, fill=False, lw=2, color="k"))
+        for e in msp:
+            c = PIECE_COLOURS.get(e.dxf.layer, "k")
+            ring = [(x, y) for x, y, *_ in e.get_points()] if e.dxftype() == "LWPOLYLINE" else poly(e)
+            ring = ring + ring[:1]
+            ax.plot([x for x, _ in ring], [y for _, y in ring], color=c, lw=0.8 if is_hole(e) else 1.2)
+            if not is_hole(e):
+                g = Polygon(ring)
+                ax.fill(*g.exterior.xy, color=c, alpha=0.15)
+                rot = next(p[1] for p in placed if p[0] == e.dxf.layer)
+                b = g.bounds
+                pt = g.representative_point()
+                ax.text(pt.x, pt.y, f'{e.dxf.layer}\n{b[2] - b[0]:.2f}" x {b[3] - b[1]:.2f}"'
+                        + (f"\nrotated {rot:g}°" if rot else ""), ha="center", va="center", fontsize=9, color=c)
+        ax.set_xlim(-0.5, mat_w + 0.5)
+        ax.set_ylim(-0.5, mat_h + 0.5)
+        ax.set_aspect("equal")
+        ax.set_xticks(range(0, int(mat_w) + 1))
+        ax.set_yticks(range(0, int(mat_h) + 1))
+        ax.grid(alpha=0.3)
+        ax.set_title(f'Mat {i + 1} of {n}: {mat_w:g}" x {mat_h:g}" cutting area (inches), 5 mm between pieces')
+        fig.savefig(png_out, dpi=90, bbox_inches="tight")
+        plt.close(fig)
+        print(f"{dxf_out.name}: " + ", ".join(f"{p[0]}" + (f" ({p[1]:g} deg)" if p[1] else "") for p in placed))
+
+
 def render_each(src, outdir):
     """One PNG per piece (per layer): its outline and holes, nothing around it."""
     from render_pieces import render
@@ -259,4 +386,4 @@ def render_each(src, outdir):
 if __name__ == "__main__":
     step, *args = sys.argv[1:]
     {"clean": clean, "split-chone": split_chone, "join-edges": join_edges,
-     "trim-cuff": trim_cuff, "render": render_each}[step](*args)
+     "trim-cuff": trim_cuff, "layout": layout, "render": render_each}[step](*args)

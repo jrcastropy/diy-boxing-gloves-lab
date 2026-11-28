@@ -15,20 +15,26 @@ The scale bar drawn on the sheet doesn't match the file's units, so use the file
 - **What was deleted:** nothing.
 - **A4 print:** `../print/mould1-smoothed-thumb+0.75in+2cm-A4-tiled-butt.pdf` (3 pages, butt joins)
 
-## `latest-cutting-machine.dxf`
+## `latest-cutting-machine-14x15-mat<n>.dxf` and `latest-cutting-machine-12x24-mat<n>.dxf`
 
-**`latest-cutting-machine.dxf` is the current leather cut file for the cutting machine (Silhouette Cameo 4 Plus).** It's a byte-for-byte copy of one of the named "leather cut" DXFs below. It holds only the leather pieces, so it isn't a replacement for `latest.dxf`, which stays the full glove pattern.
+**These four files are the current ready-to-cut leather files for the cutting machine (Silhouette Cameo 4 Plus), one per mat.** Each is a byte-for-byte copy of one of the named "leather cut ... mat" DXFs below. Use the 14x15 pair with a 14"×15" mat, or the 12x24 pair with a 12"×24" mat. They hold only the leather pieces, so they don't replace `latest.dxf`, which stays the full glove pattern.
 
-- **Copy of:** `Laces Boxing 14OZ - leather cut - step4 cuff bottom trimmed to palm.dxf`
-- **Since:** 2026-11-28 (first version)
-- **Made from:** `latest.dxf` (at the time, a copy of `smoothed all thumb +0.75in +2cm`), through steps 1–4 of `scripts/leather_cut.py`
-- **What's in it:** the leather pieces Front Palm, Chone body, Chone thumb, Chone Cuff, Thumb and Thumb Panel. Only outer cut lines and real holes are kept, and each piece is on its own layer.
+| Pointer | Copy of | Pieces |
+| --- | --- | --- |
+| `latest-cutting-machine-14x15-mat1.dxf` | `Laces Boxing 14OZ - leather cut - 14x15 mat 1 of 2.dxf` | Chone body (tilted 41°, about 1 mm to spare), Chone thumb, Thumb |
+| `latest-cutting-machine-14x15-mat2.dxf` | `Laces Boxing 14OZ - leather cut - 14x15 mat 2 of 2.dxf` | Front Palm, Chone Cuff, Thumb Panel |
+| `latest-cutting-machine-12x24-mat1.dxf` | `Laces Boxing 14OZ - leather cut - 12x24 mat 1 of 2.dxf` | Chone body (upright), Front Palm, Thumb Panel |
+| `latest-cutting-machine-12x24-mat2.dxf` | `Laces Boxing 14OZ - leather cut - 12x24 mat 2 of 2.dxf` | Chone Cuff, Chone thumb, Thumb (fits in 12"×9.2", so it also cuts on a 14"×15" mat) |
+
+- **Since:** 2026-11-28, replacing `latest-cutting-machine.dxf` (an un-laid-out copy of step 4, now removed; step 4 itself is kept)
+- **Made from:** `latest.dxf` (at the time, a copy of `smoothed all thumb +0.75in +2cm`), through steps 1–4 and `layout` of `scripts/leather_cut.py`
+- **What's in it:** the leather pieces Front Palm, Chone body, Chone thumb, Chone Cuff, Thumb and Thumb Panel, laid out on the mat with its bottom-left corner at (0, 0) and no border. Only outer cut lines and real holes are kept; each piece is on its own layer; pieces are at least 5 mm apart.
 - **What was edited:**
   - The Chone is split from the thumb notch to the bottom corner, with 5 mm added on both sides of the cut.
   - 5 mm is added below the Chone's bottom edge and above the Cuff's top edge.
   - 0.32" (8.1 mm) is cut off the Cuff's bottom so it lines up with the Front Palm's bottom edge.
 - **What was deleted:** inner lines, the palm's dash marks, the lettering, the moulds, the linings and the scale bar.
-- **Layout:** none yet. The pieces are still where they were on the pattern sheet.
+- **Images:** `../renders/leather-cut-mat14x15-mat<n>.png`, `../renders/leather-cut-mat12x24-mat<n>.png`
 
 ## All files
 
@@ -51,5 +57,6 @@ The scale bar drawn on the sheet doesn't match the file's units, so use the file
 | `Laces Boxing 14OZ - leather cut - step2 chone thumb split.dxf` | **Cutting-machine file, step 2.** Step 1 with the Chone (12.20" × 15.37", too big for either mat) cut in two along a straight 5.51" line from the thumb notch to the corner where the bottom edge starts. Both parts get 5 mm added along the cut for the join. The body's bottom edge simply carries on 5 mm; the other strip ends are square. Layers `chone-body` (8.56" × 15.37", keeps the Chone's hole; needs the 12"×24" mat) and `chone-thumb` (5.69" × 6.09"). Other pieces as in step 1. Images: one per piece in `renders/leather-cut-step2/`, split line `renders/leather-cut-step2-chone-split-preview.png`, both ends close up `renders/leather-cut-step2-split-ends-zoom.png`. | `scripts/leather_cut.py split-chone` |
 | `Laces Boxing 14OZ - leather cut - step3 chone and cuff join 5mm.dxf` | **Cutting-machine file, step 3.** Step 2 with 5 mm added below the Chone body's bottom edge and above the Chone Cuff's top edge, so the two butt together with the margin that used to be added by hand when tracing. The added strips have straight up-and-down sides, so both edges keep their length (body 6.33", Cuff 6.13"). Chone body now 8.56" × 15.57" (12"×24" mat), Cuff 6.13" × 5.09". The Cuff is now a closed polyline. Images: one per piece in `renders/leather-cut-step3/`; previews `renders/leather-cut-step3-preview.png` (sides carried on, not used) and `renders/leather-cut-step3-preview-vertical-sides.png` (the one built). | `scripts/leather_cut.py join-edges` |
 | `Laces Boxing 14OZ - leather cut - step4 cuff bottom trimmed to palm.dxf` | **Cutting-machine file, step 4.** Step 3 with the Chone Cuff's bottom cut straight across, 0.32" (8.1 mm) up, so in the finished glove it lines up with the Front Palm's bottom edge. Placement is taken from `latest.dxf` with the same rule as `overlay_palm.py` (Cuff's top outer line on the Chone's bottom inner line; palm's lower thumb-notch corner on the left end of that join). Cuff now 6.13" × 4.77"; other pieces as in step 3. Images: one per piece in `renders/leather-cut-step4/`; preview `renders/leather-cut-step4-preview.png`. | `scripts/leather_cut.py trim-cuff ... dxf/latest.dxf` |
+| `Laces Boxing 14OZ - leather cut - 14x15 mat 1 of 2.dxf`, `... 14x15 mat 2 of 2.dxf` and `... 12x24 mat 1 of 2.dxf`, `... 12x24 mat 2 of 2.dxf` | **Ready-to-cut mat files**, made from step 4, one DXF per mat, with the mat's bottom-left corner at (0, 0) and no border. Pieces are at least 5 mm apart and turn only in 90° steps, except the Chone body on 14"×15", which only fits tilted 41° with about 1 mm to spare. **14×15:** mat 1 holds the Chone body (41°), Chone thumb and Thumb; mat 2 holds the Front Palm, Cuff and Thumb Panel. **12×24:** mat 1 holds the Chone body (upright), Front Palm and Thumb Panel; mat 2 holds the Cuff, Chone thumb and Thumb, all within 12"×9.2", so that file also cuts on a 14"×15" mat. Images: `renders/leather-cut-mat14x15-mat<n>.png`, `renders/leather-cut-mat12x24-mat<n>.png`. | `scripts/leather_cut.py layout` |
 
 The Chone is scaled because, at 100%, it's too small to cover the 2" of foam. See "The Chone is too small" in [`../PATTERN-NOTES.md`](../PATTERN-NOTES.md).

@@ -1,16 +1,29 @@
 # CLAUDE.md
 
-## `dxf/latest.dxf` is the current pattern
+## The "latest" pointer files in `dxf/`
 
-- `dxf/latest.dxf` is always a byte-for-byte copy of the current working DXF. Unless the user names a different file, "the latest", "the current pattern" and "latest.dxf" all mean this file.
-- Refer to it as `latest.dxf` in docs and answers. Don't call any other named file "latest" anywhere, so the pointer lives in one place.
-- What `latest.dxf` is a copy of, and what changed in it, is written only in the `latest.dxf` section of [`dxf/README.md`](dxf/README.md).
+There are exactly two kinds of pointer, and each is a byte-for-byte copy of a named DXF:
+
+- **`dxf/latest.dxf`**: the core pattern, the full glove sheet. Unless the user names a different file, "the latest", "the current pattern" and "latest.dxf" all mean this file.
+- **The cutting-machine files**: the current ready-to-cut leather files for the Cameo 4 Plus, one per mat:
+  - `dxf/latest-cutting-machine-14x15-mat1.dxf`, `dxf/latest-cutting-machine-14x15-mat2.dxf` (14"×15" mat)
+  - `dxf/latest-cutting-machine-12x24-mat1.dxf`, `dxf/latest-cutting-machine-12x24-mat2.dxf` (12"×24" mat)
+
+  "The latest cutting files" (or "latest 14x15" / "latest 12x24") means these.
+
+Rules:
+
+- Refer to them by these names in docs and answers. Don't call any other named file "latest" anywhere, so the pointers live in one place.
+- What each pointer is a copy of, and what changed, is written only in its section of [`dxf/README.md`](dxf/README.md): the `latest.dxf` section, or the cutting-machine section.
 
 ## After creating a new DXF
 
 1. Save it under its own descriptive name in `dxf/`, and add its row to the table in `dxf/README.md` as usual.
-2. Then ask the user, word for word: **"Do you want to make this the latest.dxf now? If yes, I will start creating a copy."**
+2. Then ask the user, word for word:
+   - for a full pattern sheet: **"Do you want to make this the latest.dxf now? If yes, I will start creating a copy."**
+   - for ready-to-cut mat files: **"Do you want to make these the latest cutting-machine files now? If yes, I will start creating copies."**
 3. Only if they say yes:
-   - Copy the new file over `dxf/latest.dxf` (a plain copy, with no edits), then check the two files are identical (`cmp`).
-   - Rewrite the `latest.dxf` section of `dxf/README.md`. Fill in **Copy of** (the source filename), **Since** (today's date, and which file it replaces), **What's new**, **What was edited**, **What was deleted** (write "nothing" if nothing was) and **A4 print** (if there is one).
-4. If they say no, leave `latest.dxf` and its README section alone.
+   - Copy each new file over its pointer (a plain copy, with no edits), then check the files are identical (`cmp`).
+   - Rewrite that pointer's section of `dxf/README.md`. Fill in **Copy of** (the source filename), **Since** (today's date, and which file it replaces), **What's new**, **What was edited**, **What was deleted** (write "nothing" if nothing was) and **A4 print** (if there is one) or the mat images.
+4. If they say no, leave the pointers and their README sections alone.
+5. When `latest.dxf` changes, the cutting-machine files are not updated automatically; they're rebuilt from it only if the user asks.
