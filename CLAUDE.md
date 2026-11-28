@@ -5,11 +5,11 @@
 There are exactly two kinds of pointer, and each is a byte-for-byte copy of a named DXF:
 
 - **`dxf/latest.dxf`**: the core pattern, the full glove sheet. Unless the user names a different file, "the latest", "the current pattern" and "latest.dxf" all mean this file.
-- **The cutting-machine files**: the current ready-to-cut leather files for the Cameo 4 Plus, one per mat:
-  - `dxf/latest-cutting-machine-14x15-mat1.dxf`, `dxf/latest-cutting-machine-14x15-mat2.dxf` (14"×15" mat)
-  - `dxf/latest-cutting-machine-12x24-mat1.dxf`, `dxf/latest-cutting-machine-12x24-mat2.dxf` (12"×24" mat)
+- **The cutting-machine files**: the current ready-to-cut leather files for the Cameo 4 Plus, one mat per leather colour:
+  - `dxf/latest-cutting-machine-chone-colour-12x24.dxf` (Chone body, Chone thumb, Chone Cuff, Thumb Panel; 12"×24" mat)
+  - `dxf/latest-cutting-machine-palm-colour-12x24.dxf` or `dxf/latest-cutting-machine-palm-colour-14x15.dxf` (Front Palm, Thumb; whichever mat is loaded)
 
-  "The latest cutting files" (or "latest 14x15" / "latest 12x24") means these.
+  "The latest cutting files" (or "latest chone colour" / "latest palm colour") means these.
 
 Rules:
 
@@ -30,4 +30,4 @@ Rules:
 
 ## Silhouette Studio (cutting machine)
 
-When the user says "import it on the app" or "open it in Silhouette", follow [`docs/silhouette-studio.md`](docs/silhouette-studio.md): open the right `latest-cutting-machine-*.dxf` with `open -a "Silhouette Studio" <file>`, then ask for a ⌘A screenshot and check the size and position against that doc. Any new mat DXF must be moved with `studio-top` (top-left at (0, 0), y negative), or it opens above the mat.
+When the user says "import it on the app" or "open it in Silhouette", follow [`docs/silhouette-studio.md`](docs/silhouette-studio.md): open the right `latest-cutting-machine-*.dxf` with `open -a "Silhouette Studio" <file>`, then ask for a ⌘A screenshot and check the size and position against that doc. Any new mat DXF must be moved for Studio (`layout` does it: top-left 10 mm in from the mat's top-left, y negative), or it opens above the mat. Mats keep 10 mm between pieces and from the edges.

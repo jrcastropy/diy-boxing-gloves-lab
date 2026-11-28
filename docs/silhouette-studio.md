@@ -6,14 +6,13 @@ When the user says "import it on the app" (or "open it in Silhouette"), it means
 
 ## Which file to open
 
-The ready-to-cut files are the four `latest-cutting-machine-*` pointers in `dxf/`, one per mat. Their section in [`../dxf/README.md`](../dxf/README.md) says what each one is a copy of.
+The ready-to-cut files are the three `latest-cutting-machine-*` pointers in `dxf/`, one mat per leather colour. Their section in [`../dxf/README.md`](../dxf/README.md) says what each one is a copy of.
 
-| Mat loaded | Files to open (one cut each) |
-| --- | --- |
-| 14" × 15" | `latest-cutting-machine-14x15-mat1.dxf`, then `latest-cutting-machine-14x15-mat2.dxf` |
-| 12" × 24" | `latest-cutting-machine-12x24-mat1.dxf`, then `latest-cutting-machine-12x24-mat2.dxf` |
-
-`12x24-mat2` fits within 12" × 9.2", so it also cuts on a 14" × 15" mat.
+| Leather | Mat loaded | File to open |
+| --- | --- | --- |
+| Chone colour (Chone body, Chone thumb, Chone Cuff, Thumb Panel) | 12" × 24" only | `latest-cutting-machine-chone-colour-12x24.dxf` |
+| Palm colour (Front Palm, Thumb) | 12" × 24" | `latest-cutting-machine-palm-colour-12x24.dxf` |
+| Palm colour (Front Palm, Thumb) | 14" × 15" | `latest-cutting-machine-palm-colour-14x15.dxf` |
 
 ## Opening the app
 
@@ -26,7 +25,7 @@ The ready-to-cut files are the four `latest-cutting-machine-*` pointers in `dxf/
 From the terminal (this is what Claude runs). It starts Studio if it's closed, and opens the file in a new tab:
 
 ```sh
-open -a "Silhouette Studio" "/Users/jayrcastro/Repositories/personal-projects/boxing/dxf/latest-cutting-machine-14x15-mat1.dxf"
+open -a "Silhouette Studio" "/Users/jayrcastro/Repositories/personal-projects/boxing/dxf/latest-cutting-machine-chone-colour-12x24.dxf"
 ```
 
 By hand: **File → Open** in Studio, pick the DXF.
@@ -51,17 +50,18 @@ Press ⌘A in Studio. The toolbar shows **W**, **H**, **X** and **Y**, and the s
 
 | File | W × H | X, Y |
 | --- | --- | --- |
-| `latest-cutting-machine-14x15-mat1.dxf` | 13.991 × 14.956 in | 0.000, 0.000 |
-| `latest-cutting-machine-14x15-mat2.dxf` | 13.734 × 11.271 in | 0.000, 0.000 |
-| `latest-cutting-machine-12x24-mat1.dxf` | 11.159 × 21.972 in | 0.000, 0.000 |
-| `latest-cutting-machine-12x24-mat2.dxf` | 11.991 × 9.157 in | 0.000, 0.000 |
+| `latest-cutting-machine-chone-colour-12x24.dxf` | 11.191 × 22.984 in | 0.394, 0.394 |
+| `latest-cutting-machine-palm-colour-12x24.dxf` | 11.159 × 10.491 in | 0.394, 0.394 |
+| `latest-cutting-machine-palm-colour-14x15.dxf` | 13.191 × 11.107 in | 0.394, 0.394 |
+
+X and Y are 0.394 in (10 mm): the layouts keep every piece 10 mm from the mat's edges and 10 mm apart.
 
 These sizes are for the current files. If the files are rebuilt, read the new sizes from the output of `scripts/leather_cut.py layout` or `studio-top`.
 
 Also check:
 
 - Every piece and hole is there, with smooth curves (the pieces of each mat are listed in [`../dxf/README.md`](../dxf/README.md)).
-- All pieces are inside the **red line** (the cutting area). On 14x15 mat 1 there's only about 1 mm to spare top to bottom.
+- All pieces are inside the **red line** (the cutting area). The Chone-colour mat is the fullest: about 16 mm spare at the bottom.
 - In **Page Setup**, the machine is the Cameo 4 Plus and the mat size matches the mat loaded.
 
 If the size is wrong, fix the Import setting and reopen. Don't just type the right W into the toolbar: that fixes the size but not the position.
@@ -71,12 +71,19 @@ If the size is wrong, fix the Import setting and reopen. Don't just type the rig
 Two things in the DXF itself, both done by `scripts/leather_cut.py`:
 
 1. **Units: inches.** The files are in inches (`$INSUNITS` = 1). With "As is", Studio reads them at the right size.
-2. **The design sits below y = 0.** DXF counts y upward from the bottom, but Studio counts y downward from the top of the page (Studio y = −DXF y). A design drawn from y = 0 upward opens entirely **above** the mat; the first test showed Y −14.956. So every mat file is moved straight down until its top-left corner is at (0, 0), and the design runs down to negative y. It then opens on the mat, top-left at the page's top-left. Shapes, sizes and layout don't change.
+2. **The design sits below y = 0.** DXF counts y upward from the bottom, but Studio counts y downward from the top of the page (Studio y = −DXF y). A design drawn from y = 0 upward opens entirely **above** the mat; the first test showed Y −14.956. So every mat file is moved straight down until its top-left corner is 10 mm in from the mat's top-left (x = 10 mm, y = −10 mm), and the design runs down to negative y. It then opens on the mat. Shapes, sizes and layout don't change.
+3. **Spacing.** `layout` keeps every piece 10 mm from the mat's edges and 10 mm from the next piece (`EDGE_MARGIN`, `LAYOUT_GAP` in the script).
 
-`layout` writes the mat files already moved (named `... mat <n> of <m> - studio top.dxf`). To move any other DXF the same way:
+`layout` writes the mat files already moved (named `... - studio top 10mm edge 10mm gap.dxf`). A colour mat is made by giving it the pieces and a label:
 
 ```sh
-uv run --with ezdxf --with matplotlib --with shapely python scripts/leather_cut.py studio-top "dxf/<file>.dxf" "dxf/<new name>.dxf"
+uv run --with ezdxf --with matplotlib --with shapely python scripts/leather_cut.py layout "dxf/<step 4>.dxf" 12 24 chone-body,chone-cuff,chone-thumb,thumb-panel "chone colour"
+```
+
+To move any other DXF for Studio (optional margin in mm, default 0):
+
+```sh
+uv run --with ezdxf --with matplotlib --with shapely python scripts/leather_cut.py studio-top "dxf/<file>.dxf" "dxf/<new name>.dxf" 10
 ```
 
 What else the file needs (from Silhouette's DXF support notes):
@@ -87,10 +94,10 @@ What else the file needs (from Silhouette's DXF support notes):
 
 ## Sending to the machine
 
-1. In the **Send** tab, choose the Cameo 4 Plus. Bluetooth works: turn it on on the Mac and press the Bluetooth button on the Cameo. USB is safer for the tight 14x15 mat 1, because a dropped connection stops the cut partway.
+1. In the **Send** tab, choose the Cameo 4 Plus. Bluetooth works: turn it on on the Mac and press the Bluetooth button on the Cameo. USB is safer, because a dropped connection stops the cut partway.
 2. Set the material and blade for the leather. The machine takes material up to 3 mm thick.
 3. Cut the holes before the outlines (cut order), so a piece doesn't shift once it's cut free.
-4. Do a paper test first, especially for 14x15 mat 1.
+4. Do a paper test first, especially for the Chone-colour mat, the fullest one.
 
 Silhouette lists macOS 13–15 for the Cameo 4 Plus; this Mac is on 27.2, which is newer than the list. If the machine doesn't connect, that may be why.
 

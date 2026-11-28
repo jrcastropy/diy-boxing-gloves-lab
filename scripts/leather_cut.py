@@ -25,16 +25,22 @@ the Cuff's top outer line on the Chone's bottom inner line, and the palm's lower
 thumb-notch corner on the left end of that join.
 
 Layout (layout): lays the pieces out on cutting mats of a given size and writes
-one DXF per mat. No mat border is drawn. Each mat's design is then moved so its
-top edge is at y = 0 and its left edge at x = 0 (see Studio top below). Largest piece first, each goes as low, then as far left, as it fits on
-the first mat with room, 5 mm apart. Pieces turn only in 90-degree steps (so
+one DXF per mat. No mat border is drawn. Pieces stay EDGE_MARGIN (10 mm) inside
+the mat's edges. Each mat's design is then moved so its top-left is 10 mm in from
+the mat's top-left, i.e. top edge at y = -10 mm, left edge at x = 10 mm (see
+Studio top below). Largest piece first, each goes as low, then as far left, as it fits on
+the first mat with room, LAYOUT_GAP (10 mm) apart. Pieces turn only in 90-degree steps (so
 they keep their direction on the hide), except where TILT says otherwise: on
 the 14" x 15" mat the Chone body only fits tilted 41 degrees (about 1 mm spare).
-It also draws a preview PNG of each mat (drawn before the move, mat bottom at 0).
+It also draws a preview PNG of each mat as Silhouette Studio shows it (y down
+from the mat's top), with the 10 mm edge margin dashed in red.
+Given a list of pieces and a label, it lays out only those, on one mat (used to
+put each leather colour on its own mat); if they don't fit largest-first, it
+tries every placing order and rotation.
 
 Studio top (studio-top): moves a laid-out DXF, without changing shapes or size,
-so its top edge is at y = 0 and its left edge at x = 0; the design then runs
-down to negative y. Silhouette Studio counts y downward from the page's top
+so its top edge is at y = 0 and its left edge at x = 0 (or an optional margin
+in from both); the design then runs down to negative y. Silhouette Studio counts y downward from the page's top
 (Studio y = -DXF y), so with its Import preference set to "As is" the design
 opens on the mat, top-left at the page's top-left. A design with its bottom at
 y = 0 opens entirely above the mat.
@@ -45,9 +51,12 @@ Usage:
   python scripts/leather_cut.py join-edges "dxf/<step 2>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py trim-cuff "dxf/<step 3>.dxf" "dxf/<new name>.dxf" dxf/latest.dxf
   python scripts/leather_cut.py layout "dxf/Laces Boxing 14OZ - leather cut - step4 cuff bottom trimmed to palm.dxf" 14 15
-    (writes "dxf/Laces Boxing 14OZ - leather cut - 14x15 mat <n> of <m> - studio top.dxf"
-    and renders/leather-cut-mat14x15-mat<n>.png)
-  python scripts/leather_cut.py studio-top "dxf/<mat file>.dxf" "dxf/<new name>.dxf"
+    (writes "dxf/Laces Boxing 14OZ - leather cut - 14x15 mat <n> of <m> - studio top 10mm edge 10mm gap.dxf"
+    and renders/leather-cut-mat14x15-mat<n>-10mm-edge-10mm-gap.png)
+  python scripts/leather_cut.py layout "dxf/<step 4>.dxf" 12 24 chone-body,chone-cuff,chone-thumb,thumb-panel "chone colour"
+    (only those pieces, all on one mat: "dxf/... leather cut - chone colour 12x24 - studio top 10mm edge 10mm gap.dxf"
+    and renders/leather-cut-chone-colour-12x24-10mm-edge-10mm-gap.png)
+  python scripts/leather_cut.py studio-top "dxf/<mat file>.dxf" "dxf/<new name>.dxf" [margin mm, default 0]
   python scripts/leather_cut.py render "dxf/<leather cut>.dxf" renders/<folder>
     (one PNG per layer, i.e. per piece)
 All refuse to overwrite.
@@ -73,7 +82,9 @@ MAX_EXTEND = 1.25
 JOIN_ALLOWANCE = 5 * MM
 # Layer -> which flat edge gets the join allowance (-1 bottom, +1 top).
 JOIN_EDGES = {"chone-body": -1, "chone-cuff": +1}
-LAYOUT_GAP = 5 * MM
+LAYOUT_GAP = 10 * MM
+# Clear space kept between every piece and the mat's edges.
+EDGE_MARGIN = 10 * MM
 LAYOUT_STEP = 0.05  # search grid, inches
 # Mat size -> {piece: allowed rotations} where a piece may not use 0/90/180/270.
 TILT = {(14.0, 15.0): {"chone-body": [41.0]}}
@@ -260,7 +271,9 @@ def trim_cuff(src, dst, ref):
           f"now {b[2] - b[0]:.2f} x {b[3] - b[1]:.2f} in")
 
 
-def layout(src, mat_w, mat_h):
+def layout(src, mat_w, mat_h, only=None, label=None):
+    """only: comma-separated layers to lay out (all if omitted); they must fit on
+    one mat. label: name used in the output files instead of "mat <i> of <n>"."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -273,9 +286,13 @@ def layout(src, mat_w, mat_h):
 
     mat_w, mat_h = float(mat_w), float(mat_h)
     tag = f"{mat_w:g}x{mat_h:g}"
+    # Pieces are packed inside the mat less EDGE_MARGIN on every side.
+    area_w, area_h = mat_w - 2 * EDGE_MARGIN, mat_h - 2 * EDGE_MARGIN
     doc = ezdxf.readfile(src)
     pieces = {}
     for e in doc.modelspace():
+        if only and e.dxf.layer not in only.split(","):
+            continue
         d = pieces.setdefault(e.dxf.layer, {"outline": None, "ents": []})
         d["ents"].append(e)
         if not is_hole(e):
@@ -288,15 +305,15 @@ def layout(src, mat_w, mat_h):
         """Lowest, then leftmost, spot on the mat where shape fits, or None."""
         x0, y0, x1, y1 = shape.bounds
         w, h = x1 - x0, y1 - y0
-        if w > mat_w + 1e-9 or h > mat_h + 1e-9:
+        if w > area_w + 1e-9 or h > area_h + 1e-9:
             return None
         taken = prep(unary_union([q.buffer(LAYOUT_GAP) for *_, q in placed])) if placed else None
-        nx = int((mat_w - w) / LAYOUT_STEP + 1e-9) + 1
-        ny = int((mat_h - h) / LAYOUT_STEP + 1e-9) + 1
+        nx = int((area_w - w) / LAYOUT_STEP + 1e-9) + 1
+        ny = int((area_h - h) / LAYOUT_STEP + 1e-9) + 1
         for iy in range(ny):
             for ix in range(nx):
-                dx = min(ix * LAYOUT_STEP, mat_w - w) - x0
-                dy = min(iy * LAYOUT_STEP, mat_h - h) - y0
+                dx = min(ix * LAYOUT_STEP, area_w - w) - x0
+                dy = min(iy * LAYOUT_STEP, area_h - h) - y0
                 q = affinity.translate(shape, dx, dy)
                 if taken is None or not taken.intersects(q):
                     return dx, dy, q
@@ -322,9 +339,35 @@ def layout(src, mat_w, mat_h):
             mats.append([])
         mats[mi].append((name, r, dx, dy, q))
 
+    if only and len(mats) > 1:
+        # One mat was asked for: try every placing order and every rotation.
+        import itertools
+
+        names = list(pieces)
+        for order in itertools.permutations(names):
+            for rots in itertools.product(*[rotations[nm] for nm in order]):
+                placed = []
+                for nm, r in zip(order, rots):
+                    res = place(placed, affinity.rotate(pieces[nm]["outline"], r, origin=(0, 0)))
+                    if not res:
+                        break
+                    placed.append((nm, r, *res))
+                else:
+                    mats = [placed]
+                    break
+            if len(mats) == 1:
+                break
     n = len(mats)
-    outs = [(Path(src).parent / f"Laces Boxing 14OZ - leather cut - {tag} mat {i + 1} of {n} - studio top.dxf",
-             Path("renders") / f"leather-cut-mat{tag}-mat{i + 1}.png") for i in range(n)]
+    if only:
+        missing = set(only.split(",")) - set(pieces)
+        if missing:
+            sys.exit(f"no such layer(s): {', '.join(sorted(missing))}")
+        if n > 1:
+            sys.exit(f"{only} needs {n} {tag} mats, not one")
+    outs = [(Path(src).parent / ("Laces Boxing 14OZ - leather cut - "
+             + (f"{label} {tag}" if label else f"{tag} mat {i + 1} of {n}") + f" - studio top {EDGE_MARGIN / MM:g}mm edge {LAYOUT_GAP / MM:g}mm gap.dxf"),
+             Path("renders") / (f"leather-cut-{label.replace(' ', '-')}-{tag}-{EDGE_MARGIN / MM:g}mm-edge-{LAYOUT_GAP / MM:g}mm-gap.png" if label
+                                else f"leather-cut-mat{tag}-mat{i + 1}-{EDGE_MARGIN / MM:g}mm-edge-{LAYOUT_GAP / MM:g}mm-gap.png")) for i in range(n)]
     for d, png in outs:
         for f in (d, png):
             if f.exists():
@@ -341,11 +384,14 @@ def layout(src, mat_w, mat_h):
             for e in msp:
                 if e.dxf.layer == name:
                     e.transform(m)
+        to_studio_top(out, EDGE_MARGIN)
         fig, ax = plt.subplots(figsize=(8 * mat_w / 14, 8.6 * mat_h / 15))
         ax.add_patch(plt.Rectangle((0, 0), mat_w, mat_h, fill=False, lw=2, color="k"))
+        ax.add_patch(plt.Rectangle((EDGE_MARGIN, EDGE_MARGIN), area_w, area_h, fill=False, lw=0.8, ls="--", color="r"))
         for e in msp:
             c = PIECE_COLOURS.get(e.dxf.layer, "k")
             ring = [(x, y) for x, y, *_ in e.get_points()] if e.dxftype() == "LWPOLYLINE" else poly(e)
+            ring = [(x, -y) for x, y in ring]  # Studio view: y measured down from the mat's top
             ring = ring + ring[:1]
             ax.plot([x for x, _ in ring], [y for _, y in ring], color=c, lw=0.8 if is_hole(e) else 1.2)
             if not is_hole(e):
@@ -357,36 +403,38 @@ def layout(src, mat_w, mat_h):
                 ax.text(pt.x, pt.y, f'{e.dxf.layer}\n{b[2] - b[0]:.2f}" x {b[3] - b[1]:.2f}"'
                         + (f"\nrotated {rot:g}°" if rot else ""), ha="center", va="center", fontsize=9, color=c)
         ax.set_xlim(-0.5, mat_w + 0.5)
-        ax.set_ylim(-0.5, mat_h + 0.5)
+        ax.set_ylim(mat_h + 0.5, -0.5)
+        ax.xaxis.tick_top()
         ax.set_aspect("equal")
         ax.set_xticks(range(0, int(mat_w) + 1))
         ax.set_yticks(range(0, int(mat_h) + 1))
         ax.grid(alpha=0.3)
-        ax.set_title(f'Mat {i + 1} of {n}: {mat_w:g}" x {mat_h:g}" cutting area (inches), 5 mm between pieces')
+        ax.set_title((f"{label.capitalize()}: " if label else f"Mat {i + 1} of {n}: ")
+                     + f'{mat_w:g}" x {mat_h:g}" mat as in Silhouette Studio (inches from top-left)\n'
+                     + f"{LAYOUT_GAP / MM:g} mm between pieces, {EDGE_MARGIN / MM:g} mm from the edges (red dashes)", pad=20)
         fig.savefig(png_out, dpi=90, bbox_inches="tight")
         plt.close(fig)
-        to_studio_top(out)
         out.saveas(dxf_out)
         print(f"{dxf_out.name}: " + ", ".join(f"{p[0]}" + (f" ({p[1]:g} deg)" if p[1] else "") for p in placed))
 
 
-def to_studio_top(doc):
-    """Move everything so the top edge is at y = 0 and the left edge at x = 0."""
+def to_studio_top(doc, margin=0.0):
+    """Move everything so the top edge is at y = -margin and the left edge at x = margin."""
     from ezdxf.math import Matrix44
 
     msp = doc.modelspace()
     b = bbox.extents(msp)
-    m = Matrix44.translate(-b.extmin.x, -b.extmax.y, 0)
+    m = Matrix44.translate(margin - b.extmin.x, -margin - b.extmax.y, 0)
     for e in msp:
         e.transform(m)
     return b
 
 
-def studio_top(src, dst):
+def studio_top(src, dst, margin_mm="0"):
     if Path(dst).exists():
         sys.exit(f"{dst} exists, not overwriting")
     doc = ezdxf.readfile(src)
-    b = to_studio_top(doc)
+    b = to_studio_top(doc, float(margin_mm) * MM)
     doc.saveas(dst)
     a = bbox.extents(doc.modelspace())
     print(f"{dst}: {b.extmax.x - b.extmin.x:.3f} x {b.extmax.y - b.extmin.y:.3f} in, "
