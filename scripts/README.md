@@ -17,6 +17,7 @@ Libraries: `ezdxf` and `matplotlib` for all of them. Some also need `shapely`, `
 | `chone_vs_mould.py` | Lays foam Mould 1 inside the Chone at several sizes, coloured by how much room is left to wrap the foam. It writes `renders/chone-vs-mould1.png` (fixed input and output, no arguments). |
 | `compare_mould1_outlines.py` | Overlays Mould 1 from several DXFs (whole mould and a thumb close-up) and labels each thumb's neck-to-tip length, measured on the first one's centre line. Refuses to overwrite. |
 | `measure_thumb_reach.py` | Straight-line distance from Mould 1's thumb tip (where the centre line meets the outline) to the wrist corner on the thumb side, for several DXFs, drawn in one image. Refuses to overwrite. |
+| `measure_piece_size.py` | Draws one piece (e.g. `chone`, `mould-1`) with its length and width: the box around it as it sits on the sheet, in inches and cm. Refuses to overwrite. |
 | `chone_mould_relation.py` | Fits Mould 1 inside the Chone stitch line where the gap is most even, and reports the gap region by region. Also compares Mould 2 to Mould 1, and the Cuff Mould to the Chone Cuff. |
 
 ## Scaled patterns
@@ -106,6 +107,8 @@ python scripts/lengthen_mould_thumb.py write-smooth "dxf/Laces Boxing 14OZ - mou
 python scripts/print_free.py "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in +2cm.dxf" print/mould1-smoothed-thumb+0.75in+2cm-A4-tiled-butt.pdf "Mould 1"
 python scripts/compare_mould1_outlines.py renders/mould1-smoothed-vs-thumb+0.75in-vs-+0.75in+2cm.png "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all.dxf" "Original (smoothed)" "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in.dxf" "Thumb +0.75in" "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in +2cm.dxf" "Thumb +0.75in +2cm"
 python scripts/measure_thumb_reach.py renders/mould1-thumb-tip-to-wrist-corner-straight.png "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all.dxf" "Original (smoothed)" "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in.dxf" "Thumb +0.75in" "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in +2cm.dxf" "Thumb +0.75in +2cm"
+python scripts/measure_piece_size.py "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in +2cm.dxf" mould-1 "renders/mould1-thumb+0.75in+2cm-length-width.png"
+python scripts/measure_piece_size.py "dxf/Laces Boxing 14OZ - mould1 minified chone - edited - smoothed all thumb +0.75in +2cm.dxf" chone renders/chone-length-width.png
 python scripts/narrow_mould_thumb.py "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone thumb -0.25in.dxf" renders/mould1-minified-chone-thumb-narrow-0.25in.png 0.25
 python scripts/lengthen_mould_thumb.py preview-in-chone "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" renders 0.25 0.5 0.75
 python scripts/slim_mould_thumb.py write "dxf/Laces Boxing 14OZ - mould1 minified chone.dxf" "dxf/Laces Boxing 14OZ - mould1 minified chone slim 0.125in each side.dxf" renders/mould1-minified-chone-slim-0.125in-each-side.png 0.125
