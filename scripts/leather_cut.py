@@ -25,12 +25,19 @@ the Cuff's top outer line on the Chone's bottom inner line, and the palm's lower
 thumb-notch corner on the left end of that join.
 
 Layout (layout): lays the pieces out on cutting mats of a given size and writes
-one DXF per mat, with the mat's bottom-left corner at (0, 0). No mat border is
-drawn. Largest piece first, each goes as low, then as far left, as it fits on
+one DXF per mat. No mat border is drawn. Each mat's design is then moved so its
+top edge is at y = 0 and its left edge at x = 0 (see Studio top below). Largest piece first, each goes as low, then as far left, as it fits on
 the first mat with room, 5 mm apart. Pieces turn only in 90-degree steps (so
 they keep their direction on the hide), except where TILT says otherwise: on
 the 14" x 15" mat the Chone body only fits tilted 41 degrees (about 1 mm spare).
-It also draws a preview PNG of each mat.
+It also draws a preview PNG of each mat (drawn before the move, mat bottom at 0).
+
+Studio top (studio-top): moves a laid-out DXF, without changing shapes or size,
+so its top edge is at y = 0 and its left edge at x = 0; the design then runs
+down to negative y. Silhouette Studio counts y downward from the page's top
+(Studio y = -DXF y), so with its Import preference set to "As is" the design
+opens on the mat, top-left at the page's top-left. A design with its bottom at
+y = 0 opens entirely above the mat.
 
 Usage:
   python scripts/leather_cut.py clean dxf/latest.dxf "dxf/<new name>.dxf"
@@ -38,8 +45,9 @@ Usage:
   python scripts/leather_cut.py join-edges "dxf/<step 2>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py trim-cuff "dxf/<step 3>.dxf" "dxf/<new name>.dxf" dxf/latest.dxf
   python scripts/leather_cut.py layout "dxf/Laces Boxing 14OZ - leather cut - step4 cuff bottom trimmed to palm.dxf" 14 15
-    (writes "dxf/Laces Boxing 14OZ - leather cut - 14x15 mat <n> of <m>.dxf"
+    (writes "dxf/Laces Boxing 14OZ - leather cut - 14x15 mat <n> of <m> - studio top.dxf"
     and renders/leather-cut-mat14x15-mat<n>.png)
+  python scripts/leather_cut.py studio-top "dxf/<mat file>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py render "dxf/<leather cut>.dxf" renders/<folder>
     (one PNG per layer, i.e. per piece)
 All refuse to overwrite.
@@ -315,7 +323,7 @@ def layout(src, mat_w, mat_h):
         mats[mi].append((name, r, dx, dy, q))
 
     n = len(mats)
-    outs = [(Path(src).parent / f"Laces Boxing 14OZ - leather cut - {tag} mat {i + 1} of {n}.dxf",
+    outs = [(Path(src).parent / f"Laces Boxing 14OZ - leather cut - {tag} mat {i + 1} of {n} - studio top.dxf",
              Path("renders") / f"leather-cut-mat{tag}-mat{i + 1}.png") for i in range(n)]
     for d, png in outs:
         for f in (d, png):
@@ -333,8 +341,6 @@ def layout(src, mat_w, mat_h):
             for e in msp:
                 if e.dxf.layer == name:
                     e.transform(m)
-        out.saveas(dxf_out)
-
         fig, ax = plt.subplots(figsize=(8 * mat_w / 14, 8.6 * mat_h / 15))
         ax.add_patch(plt.Rectangle((0, 0), mat_w, mat_h, fill=False, lw=2, color="k"))
         for e in msp:
@@ -359,7 +365,33 @@ def layout(src, mat_w, mat_h):
         ax.set_title(f'Mat {i + 1} of {n}: {mat_w:g}" x {mat_h:g}" cutting area (inches), 5 mm between pieces')
         fig.savefig(png_out, dpi=90, bbox_inches="tight")
         plt.close(fig)
+        to_studio_top(out)
+        out.saveas(dxf_out)
         print(f"{dxf_out.name}: " + ", ".join(f"{p[0]}" + (f" ({p[1]:g} deg)" if p[1] else "") for p in placed))
+
+
+def to_studio_top(doc):
+    """Move everything so the top edge is at y = 0 and the left edge at x = 0."""
+    from ezdxf.math import Matrix44
+
+    msp = doc.modelspace()
+    b = bbox.extents(msp)
+    m = Matrix44.translate(-b.extmin.x, -b.extmax.y, 0)
+    for e in msp:
+        e.transform(m)
+    return b
+
+
+def studio_top(src, dst):
+    if Path(dst).exists():
+        sys.exit(f"{dst} exists, not overwriting")
+    doc = ezdxf.readfile(src)
+    b = to_studio_top(doc)
+    doc.saveas(dst)
+    a = bbox.extents(doc.modelspace())
+    print(f"{dst}: {b.extmax.x - b.extmin.x:.3f} x {b.extmax.y - b.extmin.y:.3f} in, "
+          f"was x {b.extmin.x:.3f}..{b.extmax.x:.3f} y {b.extmin.y:.3f}..{b.extmax.y:.3f}, "
+          f"now x {a.extmin.x:.3f}..{a.extmax.x:.3f} y {a.extmin.y:.3f}..{a.extmax.y:.3f}")
 
 
 def render_each(src, outdir):
@@ -386,4 +418,5 @@ def render_each(src, outdir):
 if __name__ == "__main__":
     step, *args = sys.argv[1:]
     {"clean": clean, "split-chone": split_chone, "join-edges": join_edges,
-     "trim-cuff": trim_cuff, "layout": layout, "render": render_each}[step](*args)
+     "trim-cuff": trim_cuff, "layout": layout, "studio-top": studio_top,
+     "render": render_each}[step](*args)

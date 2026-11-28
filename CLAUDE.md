@@ -27,3 +27,7 @@ Rules:
    - Rewrite that pointer's section of `dxf/README.md`. Fill in **Copy of** (the source filename), **Since** (today's date, and which file it replaces), **What's new**, **What was edited**, **What was deleted** (write "nothing" if nothing was) and **A4 print** (if there is one) or the mat images.
 4. If they say no, leave the pointers and their README sections alone.
 5. When `latest.dxf` changes, the cutting-machine files are not updated automatically; they're rebuilt from it only if the user asks.
+
+## Silhouette Studio (cutting machine)
+
+When the user says "import it on the app" or "open it in Silhouette", follow [`docs/silhouette-studio.md`](docs/silhouette-studio.md): open the right `latest-cutting-machine-*.dxf` with `open -a "Silhouette Studio" <file>`, then ask for a ⌘A screenshot and check the size and position against that doc. Any new mat DXF must be moved with `studio-top` (top-left at (0, 0), y negative), or it opens above the mat.
