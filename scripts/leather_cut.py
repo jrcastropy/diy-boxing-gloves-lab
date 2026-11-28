@@ -10,15 +10,21 @@ along a straight line from the thumb notch to the corner where the bottom edge
 starts. Both parts get a 5 mm strip added along the cut for the join. At each
 end of the cut the piece's own edge is carried on straight to the strip's
 outer line if it meets the cut steeply (the body's bottom edge), else the strip
-has a square end. Layers: chone-body (keeps the Chone's hole) and chone-thumb. The parts are
-written as closed polylines; everything else is copied unchanged.
+has a square end. Layers: chone-body (keeps the Chone's hole) and chone-thumb.
+The parts are written as closed polylines; everything else is copied unchanged.
+
+Step 3 (join-edges): 5 mm added below the Chone body's bottom edge and above the
+Chone Cuff's top edge, so the two butt together with the margin that used to be
+added by hand when tracing. The added strip has straight up-and-down sides, so
+both edges keep their length. The Cuff is rewritten as a closed polyline.
 
 Usage:
   python scripts/leather_cut.py clean dxf/latest.dxf "dxf/<new name>.dxf"
   python scripts/leather_cut.py split-chone "dxf/<step 1>.dxf" "dxf/<new name>.dxf"
+  python scripts/leather_cut.py join-edges "dxf/<step 2>.dxf" "dxf/<new name>.dxf"
   python scripts/leather_cut.py render "dxf/<leather cut>.dxf" renders/<folder>
     (one PNG per layer, i.e. per piece)
-Both refuse to overwrite.
+All refuse to overwrite.
 """
 import sys
 from pathlib import Path
@@ -38,6 +44,9 @@ SPLIT_ALLOWANCE = 5 * MM
 # A strip end carries the piece's edge on only if that takes at most this many
 # allowances (edge meets the cut at 53 degrees or more); otherwise square end.
 MAX_EXTEND = 1.25
+JOIN_ALLOWANCE = 5 * MM
+# Layer -> which flat edge gets the join allowance (-1 bottom, +1 top).
+JOIN_EDGES = {"chone-body": -1, "chone-cuff": +1}
 
 
 def is_hole(e):
@@ -154,6 +163,36 @@ def split_chone(src, dst):
           f"corner ({corner[0] - x0:.2f}, {corner[1] - y0:.2f}) from the Chone's bottom-left")
 
 
+def join_edges(src, dst):
+    from shapely.geometry import Polygon
+
+    if Path(dst).exists():
+        sys.exit(f"{dst} exists, not overwriting")
+    doc = ezdxf.readfile(src)
+    msp = doc.modelspace()
+    for layer, side in JOIN_EDGES.items():
+        outline = next(e for e in msp if e.dxf.layer == layer and not is_hole(e))
+        if outline.dxftype() == "LWPOLYLINE":
+            ring = [(x, y) for x, y, *_ in outline.get_points()]
+        else:
+            ring = poly(outline)
+            if ring[0] == ring[-1]:
+                ring = ring[:-1]
+        ys = [y for _, y in ring]
+        edge_y = max(ys) if side > 0 else min(ys)
+        flat = [q for q in ring if abs(q[1] - edge_y) < 0.01]
+        left, right = min(flat), max(flat)
+        y2 = edge_y + side * JOIN_ALLOWANCE
+        strip = Polygon([(left[0], edge_y), (right[0], edge_y), (right[0], y2), (left[0], y2)])
+        g = Polygon(ring).buffer(0).union(strip.buffer(1e-9)).simplify(0.001)
+        msp.add_lwpolyline(list(g.exterior.coords)[:-1], close=True, dxfattribs={"layer": layer})
+        msp.delete_entity(outline)
+        b = g.bounds
+        print(f"{layer}: {'top' if side > 0 else 'bottom'} edge {right[0] - left[0]:.2f} in, "
+              f"+5 mm, now {b[2] - b[0]:.2f} x {b[3] - b[1]:.2f} in")
+    doc.saveas(dst)
+
+
 def render_each(src, outdir):
     """One PNG per piece (per layer): its outline and holes, nothing around it."""
     from render_pieces import render
@@ -177,4 +216,4 @@ def render_each(src, outdir):
 
 if __name__ == "__main__":
     step, src, dst = sys.argv[1:4]
-    {"clean": clean, "split-chone": split_chone, "render": render_each}[step](src, dst)
+    {"clean": clean, "split-chone": split_chone, "join-edges": join_edges, "render": render_each}[step](src, dst)
