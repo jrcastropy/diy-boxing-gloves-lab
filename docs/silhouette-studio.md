@@ -94,8 +94,35 @@ What else the file needs (from Silhouette's DXF support notes):
 
 Silhouette lists macOS 13–15 for the Cameo 4 Plus; this Mac is on 27.2, which is newer than the list. If the machine doesn't connect, that may be why.
 
+## Bluetooth won't connect
+
+**Status (2026-11-28): not solved yet.** Sending over Bluetooth didn't work on the first try. Use USB to cut until it does. The steps below come from Silhouette's support pages and haven't been confirmed on this Mac yet. When something works, record it here.
+
+What the Mac showed (`system_profiler SPBluetoothDataType`):
+
+- `CAMEO 4 PLUS-375252C` appeared **twice**: connected over Bluetooth Low Energy (BLE, probably Studio's own link), and as a saved, not-connected pairing listed as a "Desktop Computer".
+- The second one looks like a pairing made in System Settings. Silhouette's fix is to connect only from inside Studio.
+
+Steps, in order:
+
+1. **Forget the old pairing.** System Settings → Bluetooth → ⓘ next to `CAMEO 4 PLUS-375252C` → **Forget This Device**. Forget both if there are two.
+2. **Allow Studio to use Bluetooth.** System Settings → Privacy & Security → Bluetooth → turn on **Silhouette Studio**.
+3. **Restart both.** Quit Studio (⌘Q) and switch the Cameo off and on. Check that the Cameo's Bluetooth button is lit.
+4. **Connect from Studio.** **Send** tab → the small machine icon at the bottom → pick the **CAMEO 4 PLUS** marked "Available" next to the Bluetooth symbol.
+5. **Update the firmware over USB.** Plug in the USB cable; if Studio offers **Update Now**, accept it, then try Bluetooth again.
+6. **Still nothing?** macOS 27.2 isn't on Silhouette's list, and some Mac users report never getting Bluetooth to work. Contact Silhouette support.
+
+To check what the Mac sees from the terminal:
+
+```sh
+system_profiler SPBluetoothDataType | grep -A3 -i cameo
+```
+
 ## Sources
 
 - [Silhouette: Importing and Exporting Troubleshooting](https://silhouetteamerica.freshdesk.com/support/solutions/articles/35000276938-importing-and-exporting-troubleshooting) (DXF limits, size on import)
 - [Silhouette: Bluetooth-compatible machines](https://silhouetteamerica.freshdesk.com/support/solutions/articles/35000206350)
 - [USCutter: Cameo 4 Plus specs](https://www.uscutter.com/15in-Silhouette-Came-4-PLUS-Craft-Cutter) (14.6" × 15" cutting area on a mat, 3 mm thickness)
+- [Silhouette: Can't connect via USB but can via Bluetooth](https://silhouetteamerica.freshdesk.com/support/solutions/articles/35000213489-can-t-connect-via-usb-but-can-connect-via-bluetooth) (clearing the pairing)
+- [Silhouette School: Cameo 4 Bluetooth setup](https://silhouetteschoolblog.com/2019/09/silhouette-cameo-4-bluetooth-set-up.html)
+- [Sure Cuts A Lot forum: Cameo 4 Bluetooth](https://forum.surecutsalot.com/viewtopic.php?p=199747) (a Mac user who never got Bluetooth working)
